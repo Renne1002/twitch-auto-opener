@@ -1,0 +1,24 @@
+[project]
+name = "twitch-auto-opener"
+version = "0.1.0"
+description = "Open Twitch stream pages automatically when target streamers go live."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+  "pydantic>=2.8.0,<3.0.0",
+  "requests>=2.32.0,<3.0.0",
+  "tenacity>=9.0.0,<10.0.0",
+]
+
+[project.scripts]
+twitch-auto-opener = "twitch_auto_opener.main:run"
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]

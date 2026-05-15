@@ -1,0 +1,19 @@
+[tools]
+python = "3.12"
+
+[tasks]
+install = "mise install && python -m pip install --upgrade pip && python -m pip install -e . && python -m pip install pyinstaller"
+init = "python -c \"from pathlib import Path; src=Path('config.sample.toml'); dst=Path('config.toml'); (not dst.exists()) and dst.write_text(src.read_text(encoding='utf-8'), encoding='utf-8')\""
+dev = "python -m twitch_auto_opener --config config.toml"
+"build:wsl" = "python -m PyInstaller --onefile --name TwitchAutoOpener.exe src/twitch_auto_opener/main.py"
+
+[tasks."build:windows_on_wsl"]
+description = "Build Windows exe from WSL via build_for_windows_on_wsl.ps1. Optional arg: output directory (Windows path)."
+run = '''
+set -eu
+
+WIN_REPO_PATH="$(wslpath -w "$PWD")"
+WIN_SCRIPT_PATH="${WIN_REPO_PATH}\\build_for_windows_on_wsl.ps1"
+
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$WIN_SCRIPT_PATH" -RepoPath "$WIN_REPO_PATH"
+'''

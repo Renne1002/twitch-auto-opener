@@ -1,0 +1,21 @@
+# Twitch API app credentials
+twitch_client_id = "replace-with-client-id"
+twitch_client_secret = "replace-with-client-secret"
+
+# Target Twitch login names to monitor
+streamer_logins = ["4771sizumu", "amanerurunanoda"]
+
+# Chrome profile account email to locate target profile
+chrome_profile_email = "dtl.134679@gmail.com"
+
+# Polling interval in seconds (fixed for current plan)
+check_interval_seconds = 30
+
+# Enable debug logs for periodic checks
+debug = false
+
+# Optional: set explicitly when chrome.exe cannot be auto-discovered
+# chrome_path = "C:/Program Files/Google/Chrome/Application/chrome.exe"
+
+# Optional: set explicitly when user data dir differs from default
+# chrome_user_data_dir = "C:/Users/<User>/AppData/Local/Google/Chrome/User Data"

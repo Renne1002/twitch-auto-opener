@@ -1,0 +1,1 @@
+"""Twitch Auto Opener package."""
