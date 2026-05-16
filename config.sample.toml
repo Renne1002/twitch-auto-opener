@@ -14,6 +14,27 @@ check_interval_seconds = 30
 # Enable debug logs for periodic checks
 debug = false
 
+# Enable automatic VOD recording when stream goes live
+record_vod_enabled = true
+
+# Output directory for recordings.
+# If omitted, uses "VOD" under the executable directory (or current working directory in dev mode).
+# You can use forward slashes on both Windows and Linux, e.g. "C:/Users/me/VOD" or "./VOD".
+# vod_output_dir = "./VOD"
+
+# Stream quality passed to streamlink (best, 1080p60, 720p, ...)
+record_quality = "best"
+
+# Command paths (override when not in PATH)
+streamlink_path = "streamlink"
+ffmpeg_path = "ffmpeg"
+
+# Convert recorded .ts to .mp4 after each recording segment
+convert_record_to_mp4 = true
+
+# Retry delay when recording process exits while stream is still live
+record_retry_delay_seconds = 10
+
 # Optional: set explicitly when chrome.exe cannot be auto-discovered
 # chrome_path = "C:/Program Files/Google/Chrome/Application/chrome.exe"
 
