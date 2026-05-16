@@ -13,6 +13,7 @@ from twitch_auto_opener.chrome_launcher import (
 )
 from twitch_auto_opener.config import load_config
 from twitch_auto_opener.monitor import MonitorService
+from twitch_auto_opener.recorder import TwitchRecorder
 from twitch_auto_opener.single_instance import SingleInstance, SingleInstanceError
 from twitch_auto_opener.startup import ensure_startup_registration
 from twitch_auto_opener.twitch_client import TwitchClient
@@ -28,11 +29,30 @@ def _parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def _resolve_app_base_dir() -> Path:
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent
+    return Path.cwd().resolve()
+
+
+def _resolve_vod_output_dir(raw_path: str | None, app_base_dir: Path) -> Path:
+    if not raw_path or not raw_path.strip():
+        return app_base_dir / "VOD"
+
+    normalized = raw_path.strip().replace("\\", "/")
+    candidate = Path(normalized).expanduser()
+    if not candidate.is_absolute():
+        candidate = app_base_dir / candidate
+    return candidate.resolve()
+
+
 def run() -> None:
     args = _parse_args()
     is_windows = platform.system() == "Windows"
 
     config = load_config(args.config)
+    app_base_dir = _resolve_app_base_dir()
+    vod_output_dir = _resolve_vod_output_dir(config.vod_output_dir, app_base_dir)
 
     lock = None
     if is_windows:
@@ -76,6 +96,17 @@ def run() -> None:
         streamers=config.streamer_logins,
         check_interval_seconds=config.check_interval_seconds,
         url_opener=url_opener,
+        recorder=TwitchRecorder(
+            output_dir=vod_output_dir,
+            streamlink_path=config.streamlink_path,
+            ffmpeg_path=config.ffmpeg_path,
+            quality=config.record_quality,
+            convert_to_mp4=config.convert_record_to_mp4,
+            retry_delay_seconds=config.record_retry_delay_seconds,
+            debug=config.debug,
+        )
+        if config.record_vod_enabled
+        else None,
         debug=config.debug,
     )
 

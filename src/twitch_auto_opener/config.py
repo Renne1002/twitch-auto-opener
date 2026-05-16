@@ -20,6 +20,13 @@ class AppConfig(BaseModel):
     debug: bool = False
     chrome_path: str | None = None
     chrome_user_data_dir: str | None = None
+    record_vod_enabled: bool = True
+    vod_output_dir: str | None = None
+    record_quality: str = Field(default="best", min_length=1)
+    streamlink_path: str = Field(default="streamlink", min_length=1)
+    ffmpeg_path: str = Field(default="ffmpeg", min_length=1)
+    convert_record_to_mp4: bool = True
+    record_retry_delay_seconds: int = Field(default=10, ge=3, le=300)
 
     @field_validator("streamer_logins")
     @classmethod

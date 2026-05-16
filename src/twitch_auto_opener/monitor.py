@@ -5,6 +5,7 @@ from typing import Callable
 
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
+from twitch_auto_opener.recorder import TwitchRecorder
 from twitch_auto_opener.twitch_client import TwitchApiError, TwitchClient
 
 
@@ -15,12 +16,14 @@ class MonitorService:
         streamers: list[str],
         check_interval_seconds: int,
         url_opener: Callable[[str], None],
+        recorder: TwitchRecorder | None = None,
         debug: bool = False,
     ) -> None:
         self._twitch_client = twitch_client
         self._streamers = streamers
         self._check_interval_seconds = check_interval_seconds
         self._url_opener = url_opener
+        self._recorder = recorder
         self._debug = debug
         self._login_by_user_id: dict[str, str] = {}
         self._previous_live_ids: set[str] = set()
@@ -66,6 +69,17 @@ class MonitorService:
                 url = f"https://www.twitch.tv/{login}"
                 print(f"[info] streamer went live: {login}; opening {url}")
                 self._url_opener(url)
+
+            if self._recorder:
+                for user_id in live_ids:
+                    login = self._login_by_user_id[user_id]
+                    url = f"https://www.twitch.tv/{login}"
+                    self._recorder.ensure_recording(
+                        user_id=user_id,
+                        login=login,
+                        url=url,
+                        is_live_now=lambda uid=user_id: uid in self._fetch_live([uid]),
+                    )
 
             self._previous_live_ids = live_ids
             self._debug_log(
