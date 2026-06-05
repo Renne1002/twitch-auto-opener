@@ -50,6 +50,10 @@ class RecordingConfig(BaseModel):
     tools: RecordingToolsConfig = Field(default_factory=RecordingToolsConfig)
 
 
+class StartupConfig(BaseModel):
+    enabled: bool = False
+
+
 class AppConfig(BaseModel):
     twitch_api: TwitchApiConfig
     streamer_default_config: StreamerFlagsConfig = Field(default_factory=StreamerFlagsConfig)
@@ -57,6 +61,7 @@ class AppConfig(BaseModel):
     chrome: ChromeConfig
     monitor: MonitorConfig = Field(default_factory=MonitorConfig)
     recording: RecordingConfig = Field(default_factory=RecordingConfig)
+    startup: StartupConfig = Field(default_factory=StartupConfig)
 
     @field_validator("streamer_configs", mode="before")
     @classmethod

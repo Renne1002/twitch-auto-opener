@@ -29,7 +29,7 @@
 
 - exe には Python ランタイムと Python パッケージは同梱されるため、通常は別途 Python / mise は不要です。
 - `recording.tools.streamlink_path` と `recording.tools.ffmpeg_path` は設定で別パスに変更できます。
-- Windows のスタートアップ登録に追加の外部ツールは不要です。`APPDATA` 配下の Startup フォルダへ `.cmd` を書き込みます。
+- Windows のスタートアップ登録に追加の外部ツールは不要です。`startup.enabled = true` のときに `APPDATA` 配下の Startup フォルダへ `.cmd` を書き込みます。
 
 ## セットアップ
 

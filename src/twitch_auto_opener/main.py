@@ -66,7 +66,7 @@ def run() -> None:
         print("[warn] non-Windows mode: startup registration and profile-specific launch are disabled")
 
     config_path = str(Path(args.config).resolve())
-    if is_windows:
+    if is_windows and config.startup.enabled:
         if getattr(sys, "frozen", False):
             startup_command = f'"{sys.executable}" --config "{config_path}"'
         else:
@@ -110,6 +110,7 @@ def run() -> None:
 
     def _shutdown(*_args: object) -> None:
         print("[info] shutdown signal received")
+        twitch_client.close()
         if lock:
             lock.release()
         raise SystemExit(0)
