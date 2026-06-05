@@ -93,7 +93,7 @@ def run() -> None:
 
     monitor = MonitorService(
         twitch_client=twitch_client,
-        streamers=config.streamer_logins,
+        streamers=config.streamers,
         check_interval_seconds=config.check_interval_seconds,
         url_opener=url_opener,
         recorder=TwitchRecorder(
@@ -104,9 +104,7 @@ def run() -> None:
             convert_to_mp4=config.convert_record_to_mp4,
             retry_delay_seconds=config.record_retry_delay_seconds,
             debug=config.debug,
-        )
-        if config.record_vod_enabled
-        else None,
+        ),
         debug=config.debug,
     )
 

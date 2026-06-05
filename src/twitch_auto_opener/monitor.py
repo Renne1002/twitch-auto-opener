@@ -5,6 +5,7 @@ from typing import Callable
 
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
+from twitch_auto_opener.config import StreamerConfig
 from twitch_auto_opener.recorder import TwitchRecorder
 from twitch_auto_opener.twitch_client import TwitchApiError, TwitchClient
 
@@ -13,7 +14,7 @@ class MonitorService:
     def __init__(
         self,
         twitch_client: TwitchClient,
-        streamers: list[str],
+        streamers: list[StreamerConfig],
         check_interval_seconds: int,
         url_opener: Callable[[str], None],
         recorder: TwitchRecorder | None = None,
@@ -25,7 +26,11 @@ class MonitorService:
         self._url_opener = url_opener
         self._recorder = recorder
         self._debug = debug
+        self._streamer_flags_by_login: dict[str, tuple[bool, bool]] = {
+            item.login: (item.auto_open, item.record) for item in streamers
+        }
         self._login_by_user_id: dict[str, str] = {}
+        self._flags_by_user_id: dict[str, tuple[bool, bool]] = {}
         self._previous_live_ids: set[str] = set()
 
     def _debug_log(self, message: str) -> None:
@@ -33,10 +38,15 @@ class MonitorService:
             print(f"[debug] {message}")
 
     def setup(self) -> None:
-        by_login = self._twitch_client.resolve_user_ids(self._streamers)
+        streamers = list(self._streamer_flags_by_login.keys())
+        by_login = self._twitch_client.resolve_user_ids(streamers)
         self._login_by_user_id = {user_id: login for login, user_id in by_login.items()}
+        self._flags_by_user_id = {
+            user_id: self._streamer_flags_by_login[login]
+            for user_id, login in self._login_by_user_id.items()
+        }
         self._debug_log(
-            f"setup resolved {len(self._login_by_user_id)} streamers: {', '.join(self._streamers)}"
+            f"setup resolved {len(self._login_by_user_id)} streamers: {', '.join(streamers)}"
         )
 
     @retry(
@@ -66,6 +76,9 @@ class MonitorService:
             newly_live = live_ids - self._previous_live_ids
             for user_id in newly_live:
                 login = self._login_by_user_id[user_id]
+                auto_open, _record = self._flags_by_user_id[user_id]
+                if not auto_open:
+                    continue
                 url = f"https://www.twitch.tv/{login}"
                 print(f"[info] streamer went live: {login}; opening {url}")
                 self._url_opener(url)
@@ -73,6 +86,9 @@ class MonitorService:
             if self._recorder:
                 for user_id in live_ids:
                     login = self._login_by_user_id[user_id]
+                    _auto_open, record = self._flags_by_user_id[user_id]
+                    if not record:
+                        continue
                     url = f"https://www.twitch.tv/{login}"
                     self._recorder.ensure_recording(
                         user_id=user_id,
