@@ -8,11 +8,48 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-function Resolve-PythonCommand {
-    $wingetCandidates = @(
-        (Join-Path $env:LOCALAPPDATA 'Microsoft\WindowsApps\winget.exe'),
-        'C:\Users\dtl13\AppData\Local\Microsoft\WindowsApps\winget.exe'
+function Test-PythonCommandCandidate {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Candidate
     )
+
+    try {
+        if ($Candidate -eq 'py -3') {
+            & py -3 --version *> $null
+            return ($LASTEXITCODE -eq 0)
+        }
+
+        if ($Candidate.Contains(' ') -and -not (Test-Path $Candidate)) {
+            $parts = $Candidate.Split(' ', 2)
+            if ($parts.Count -eq 2) {
+                & $parts[0] $parts[1] --version *> $null
+            }
+            else {
+                & $parts[0] --version *> $null
+            }
+            return ($LASTEXITCODE -eq 0)
+        }
+
+        & $Candidate --version *> $null
+        return ($LASTEXITCODE -eq 0)
+    }
+    catch {
+        return $false
+    }
+}
+
+function Resolve-PythonCommand {
+    $userProfile = $env:USERPROFILE
+    $localAppData = $env:LOCALAPPDATA
+
+    $wingetCandidates = @(
+        (Join-Path $localAppData 'Microsoft\WindowsApps\winget.exe')
+    )
+
+    if (-not [string]::IsNullOrWhiteSpace($userProfile)) {
+        $wingetCandidates += (Join-Path $userProfile 'AppData\Local\Microsoft\WindowsApps\winget.exe')
+    }
 
     $winget = $null
     foreach ($w in $wingetCandidates) {
@@ -26,38 +63,19 @@ function Resolve-PythonCommand {
         'python3',
         'python',
         'py -3',
-        (Join-Path $env:LOCALAPPDATA 'Programs\Python\Python312\python.exe'),
-        'C:\Users\dtl13\AppData\Local\Programs\Python\Python312\python.exe',
+        (Join-Path $localAppData 'Programs\Python\Python312\python.exe'),
         'C:\Python311\python.exe',
         'C:\Program Files\Streamlink\Python\python.exe'
     )
 
-    $resolved = $null
-    foreach ($candidate in $pythonCandidates) {
-        if (Test-Path $candidate) {
-            $resolved = $candidate
-            break
-        }
-
-        if ($candidate.Contains(' ')) {
-            $parts = $candidate.Split(' ', 2)
-            $cmd = Get-Command $parts[0] -ErrorAction SilentlyContinue
-            if ($cmd) {
-                $resolved = $candidate
-                break
-            }
-            continue
-        }
-
-        $cmd = Get-Command $candidate -ErrorAction SilentlyContinue
-        if ($cmd) {
-            $resolved = $candidate
-            break
-        }
+    if (-not [string]::IsNullOrWhiteSpace($userProfile)) {
+        $pythonCandidates += (Join-Path $userProfile 'AppData\Local\Programs\Python\Python312\python.exe')
     }
 
-    if ($resolved) {
-        return $resolved
+    foreach ($candidate in $pythonCandidates) {
+        if (Test-PythonCommandCandidate -Candidate $candidate) {
+            return $candidate
+        }
     }
 
     if (-not $winget) {
@@ -65,31 +83,23 @@ function Resolve-PythonCommand {
     }
 
     & $winget install --id Python.Python.3.12 --exact --scope user --silent --accept-package-agreements --accept-source-agreements --disable-interactivity
+    if ($LASTEXITCODE -ne 0) {
+        throw "winget python install failed with exit code $LASTEXITCODE"
+    }
 
     $postInstallCandidates = @(
-        (Join-Path $env:LOCALAPPDATA 'Programs\Python\Python312\python.exe'),
-        'C:\Users\dtl13\AppData\Local\Programs\Python\Python312\python.exe',
+        (Join-Path $localAppData 'Programs\Python\Python312\python.exe'),
         'python3',
         'python',
         'py -3'
     )
 
+    if (-not [string]::IsNullOrWhiteSpace($userProfile)) {
+        $postInstallCandidates += (Join-Path $userProfile 'AppData\Local\Programs\Python\Python312\python.exe')
+    }
+
     foreach ($candidate in $postInstallCandidates) {
-        if (Test-Path $candidate) {
-            return $candidate
-        }
-
-        if ($candidate.Contains(' ')) {
-            $parts = $candidate.Split(' ', 2)
-            $cmd = Get-Command $parts[0] -ErrorAction SilentlyContinue
-            if ($cmd) {
-                return $candidate
-            }
-            continue
-        }
-
-        $cmd = Get-Command $candidate -ErrorAction SilentlyContinue
-        if ($cmd) {
+        if (Test-PythonCommandCandidate -Candidate $candidate) {
             return $candidate
         }
     }
@@ -107,10 +117,16 @@ function Invoke-PythonModule {
 
     if ($PythonCommand -eq 'py -3') {
         & py -3 @Arguments
+        if ($LASTEXITCODE -ne 0) {
+            throw "Python command failed: py -3 $($Arguments -join ' ') (exit code=$LASTEXITCODE)"
+        }
         return
     }
 
     & $PythonCommand @Arguments
+    if ($LASTEXITCODE -ne 0) {
+        throw "Python command failed: $PythonCommand $($Arguments -join ' ') (exit code=$LASTEXITCODE)"
+    }
 }
 
 Set-Location $RepoPath
@@ -148,7 +164,12 @@ Invoke-PythonModule -PythonCommand $python -Arguments @(
     'src/twitch_auto_opener/main.py'
 )
 
-Copy-Item -Path 'dist\TwitchAutoOpener.exe' -Destination $OutputFile -Force
+$distExe = Join-Path (Join-Path $RepoPath 'dist') 'TwitchAutoOpener.exe'
+if (-not (Test-Path $distExe)) {
+    throw "PyInstaller output not found: $distExe"
+}
+
+Copy-Item -Path $distExe -Destination $OutputFile -Force
 
 $debugLauncher = Join-Path $OutputDir 'run_twitch_auto_opener_debug.cmd'
 $debugContent = @'

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Coroutine
+from collections.abc import Awaitable, Coroutine
 from concurrent.futures import Future
 from threading import Event, Thread
 from typing import Any
@@ -22,7 +22,11 @@ class TwitchClient:
         self._worker.start()
         self._ready.wait()
         self._closed = False
-        self._twitch = self._run(Twitch(client_id, client_secret))
+        self._twitch = self._run(self._create_twitch(client_id, client_secret))
+
+    async def _create_twitch(self, client_id: str, client_secret: str) -> Twitch:
+        # twitchAPI's Twitch(...) returns an awaitable, so wrap it in a coroutine.
+        return await Twitch(client_id, client_secret)
 
     def _run_loop(self) -> None:
         asyncio.set_event_loop(self._loop)
@@ -41,16 +45,22 @@ class TwitchClient:
                 raise
             raise TwitchApiError(f"twitchAPI call failed: {exc}") from exc
 
+    def _run_awaitable(self, awaitable: Awaitable[Any]) -> Any:
+        async def _wrap() -> Any:
+            return await awaitable
+
+        return self._run(_wrap())
+
     def close(self) -> None:
         if self._closed:
             return
-        self._closed = True
 
         try:
-            self._run(self._twitch.close())
+            self._run_awaitable(self._twitch.close())
         except TwitchApiError as exc:
             print(f"[warn] failed to close twitch client cleanly: {exc}")
         finally:
+            self._closed = True
             self._loop.call_soon_threadsafe(self._loop.stop)
             self._worker.join(timeout=1.0)
             self._loop.close()

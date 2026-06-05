@@ -42,5 +42,5 @@ streamlink_path = "streamlink"
 ffmpeg_path = "ffmpeg"
 
 [startup]
-# Windows スタートアップ登録を行うか（既定: false）
+# Windows スタートアップ登録を行うか
 enabled = false
