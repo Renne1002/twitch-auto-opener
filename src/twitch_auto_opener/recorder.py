@@ -42,10 +42,14 @@ class TwitchRecorder:
         safe = "".join(ch if ch.isalnum() or ch in ("_", "-") else "_" for ch in name.strip())
         return safe or "unknown"
 
-    def _build_ts_path(self, login: str, session_ts: str, part: int) -> Path:
+    def _build_streamer_output_dir(self, login: str) -> Path:
+        safe_login = self._sanitize_name(login)
+        return self._output_dir / safe_login
+
+    def _build_ts_path(self, streamer_output_dir: Path, login: str, session_ts: str, part: int) -> Path:
         safe_login = self._sanitize_name(login)
         filename = f"{safe_login}_{session_ts}_part{part:03d}.ts"
-        return self._output_dir / filename
+        return streamer_output_dir / filename
 
     def _record_once(self, url: str, output_path: Path) -> int:
         command = [
@@ -120,17 +124,18 @@ class TwitchRecorder:
     ) -> None:
         session_ts = self._timestamp()
         part = 1
+        streamer_output_dir = self._build_streamer_output_dir(login)
 
         try:
-            self._output_dir.mkdir(parents=True, exist_ok=True)
+            streamer_output_dir.mkdir(parents=True, exist_ok=True)
         except OSError as exc:
-            print(f"[error] failed to create output directory {self._output_dir}: {exc}")
+            print(f"[error] failed to create output directory {streamer_output_dir}: {exc}")
             return
 
-        print(f"[info] start VOD recording for {login}: output_dir={self._output_dir}")
+        print(f"[info] start VOD recording for {login}: output_dir={streamer_output_dir}")
 
         while True:
-            output_path = self._build_ts_path(login, session_ts, part)
+            output_path = self._build_ts_path(streamer_output_dir, login, session_ts, part)
             return_code = self._record_once(url, output_path)
             if return_code == 0:
                 self._convert_to_mp4_if_needed(output_path)

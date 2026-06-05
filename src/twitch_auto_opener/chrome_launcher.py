@@ -63,8 +63,8 @@ def resolve_chrome_target(
     profiles = _load_profiles(user_data_dir)
     expected = profile_email.strip().lower()
     for profile_dir, meta in profiles.items():
-        gaia = str(meta.get("user_name", "")).strip().lower()
-        if gaia == expected:
+        user_name = str(meta.get("user_name", "")).strip().lower()
+        if user_name == expected:
             return ChromeTarget(
                 chrome_path=chrome_exe,
                 user_data_dir=user_data_dir,
