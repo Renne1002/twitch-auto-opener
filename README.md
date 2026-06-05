@@ -23,12 +23,12 @@
 
 - `streamlink` 実行ファイル
 - `ffmpeg` 実行ファイル
-  `convert_record_to_mp4 = true` の場合に必要です。`false` なら不要です。
+  `recording.convert_to_mp4 = true` の場合に必要です。`false` なら不要です。
 
 ### 補足
 
 - exe には Python ランタイムと Python パッケージは同梱されるため、通常は別途 Python / mise は不要です。
-- `streamlink_path` と `ffmpeg_path` は設定で別パスに変更できます。
+- `recording.tools.streamlink_path` と `recording.tools.ffmpeg_path` は設定で別パスに変更できます。
 - Windows のスタートアップ登録に追加の外部ツールは不要です。`APPDATA` 配下の Startup フォルダへ `.cmd` を書き込みます。
 
 ## セットアップ

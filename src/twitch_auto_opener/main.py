@@ -52,7 +52,7 @@ def run() -> None:
 
     config = load_config(args.config)
     app_base_dir = _resolve_app_base_dir()
-    vod_output_dir = _resolve_vod_output_dir(config.vod_output_dir, app_base_dir)
+    vod_output_dir = _resolve_vod_output_dir(config.recording.output_dir, app_base_dir)
 
     lock = None
     if is_windows:
@@ -77,15 +77,15 @@ def run() -> None:
         ensure_startup_registration(startup_command)
 
     twitch_client = TwitchClient(
-        client_id=config.twitch_client_id,
-        client_secret=config.twitch_client_secret,
+        client_id=config.twitch_api.client_id,
+        client_secret=config.twitch_api.client_secret,
     )
 
     if is_windows:
         chrome_target = resolve_chrome_target(
-            profile_email=config.chrome_profile_email,
-            chrome_path=config.chrome_path,
-            chrome_user_data_dir=config.chrome_user_data_dir,
+            profile_email=config.chrome.profile_email,
+            chrome_path=config.chrome.path,
+            chrome_user_data_dir=config.chrome.user_data_dir,
         )
         url_opener = lambda url: open_stream_url(chrome_target, url)
     else:
@@ -94,18 +94,18 @@ def run() -> None:
     monitor = MonitorService(
         twitch_client=twitch_client,
         streamers=config.streamers,
-        check_interval_seconds=config.check_interval_seconds,
+        check_interval_seconds=config.monitor.check_interval_seconds,
         url_opener=url_opener,
         recorder=TwitchRecorder(
             output_dir=vod_output_dir,
-            streamlink_path=config.streamlink_path,
-            ffmpeg_path=config.ffmpeg_path,
-            quality=config.record_quality,
-            convert_to_mp4=config.convert_record_to_mp4,
-            retry_delay_seconds=config.record_retry_delay_seconds,
-            debug=config.debug,
+            streamlink_path=config.recording.tools.streamlink_path,
+            ffmpeg_path=config.recording.tools.ffmpeg_path,
+            quality=config.recording.quality,
+            convert_to_mp4=config.recording.convert_to_mp4,
+            retry_delay_seconds=config.recording.retry_delay_seconds,
+            debug=config.monitor.debug,
         ),
-        debug=config.debug,
+        debug=config.monitor.debug,
     )
 
     def _shutdown(*_args: object) -> None:

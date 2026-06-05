@@ -1,43 +1,42 @@
-# Twitch API app credentials
-twitch_client_id = "replace-with-client-id"
-twitch_client_secret = "replace-with-client-secret"
+[twitch_api]
+client_id = "ここにクライアントIDを入力"
+client_secret = "ここにクライアントシークレットを入力"
 
-# Target Twitch streamers to monitor.
-# auto_open defaults to true, record defaults to false when omitted.
-streamers = [
-  { login = "4771sizumu", auto_open = true, record = false },
-  { login = "amanerurunanoda", auto_open = false, record = true },
-]
+[streamer_default_config]
+auto_open = true # 配信開始時に自動でブラウザを開くか
+record = false   # 配信開始時に自動で録画を開始するか
 
-# Chrome profile account email to locate target profile
-chrome_profile_email = "dtl.134679@gmail.com"
+[streamer_configs]
+streamer1 = {}
+streamer2 = { record = true }
 
-# Polling interval in seconds (fixed for current plan)
-check_interval_seconds = 30
+[chrome]
+profile_email = "ここに Chrome プロフィールのメールアドレスを入力"
 
-# Enable debug logs for periodic checks
+# Option: chrome.exe のパス
+# path = "C:/Program Files/Google/Chrome/Application/chrome.exe"
+
+# Option: Chrome の User Data フォルダ
+# user_data_dir = "C:/Users/<User>/AppData/Local/Google/Chrome/User Data"
+
+[monitor]
+# チェック間隔（秒）。
+check_interval_seconds = 15
 debug = false
 
-# Output directory for recordings.
-# If omitted, uses "VOD" under the executable directory (or current working directory in dev mode).
-# You can use forward slashes on both Windows and Linux, e.g. "C:/Users/me/VOD" or "./VOD".
-# vod_output_dir = "./VOD"
+[recording]
+# 録画セグメントごとに .ts を .mp4 に変換するか
+convert_to_mp4 = true
 
-# Stream quality passed to streamlink (best, 1080p60, 720p, ...)
-record_quality = "best"
+# 配信中に録画プロセスが終了した場合の再試行待機時間（秒）
+retry_delay_seconds = 10
 
-# Command paths (override when not in PATH)
+# Option: 録画ファイルの出力先フォルダ
+# output_dir = "./VOD"
+
+# Option: 保存画質（best, 1080p60, 720p など）
+quality = "best"
+
+[recording.tools]
 streamlink_path = "streamlink"
 ffmpeg_path = "ffmpeg"
-
-# Convert recorded .ts to .mp4 after each recording segment
-convert_record_to_mp4 = true
-
-# Retry delay when recording process exits while stream is still live
-record_retry_delay_seconds = 10
-
-# Optional: set explicitly when chrome.exe cannot be auto-discovered
-# chrome_path = "C:/Program Files/Google/Chrome/Application/chrome.exe"
-
-# Optional: set explicitly when user data dir differs from default
-# chrome_user_data_dir = "C:/Users/<User>/AppData/Local/Google/Chrome/User Data"
