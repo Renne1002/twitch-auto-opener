@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
@@ -19,11 +19,13 @@ class TwitchApiConfig(BaseModel):
 class StreamerFlagsConfig(BaseModel):
     auto_open: bool = True
     record: bool = False
+    auto_srt: bool = False
 
 
 class StreamerOverrideConfig(BaseModel):
     auto_open: bool | None = None
     record: bool | None = None
+    auto_srt: bool | None = None
 
 
 class ChromeConfig(BaseModel):
@@ -42,12 +44,24 @@ class RecordingToolsConfig(BaseModel):
     ffmpeg_path: str = Field(default="ffmpeg", min_length=1)
 
 
+class FastWhisperConfig(BaseModel):
+    fast_whisper_path: str = Field(default="faster-whisper", min_length=1)
+    model: str = Field(default="base", min_length=1)
+    device: Literal["cpu", "cuda"] = "cpu"
+    language: str = ""
+    threads: int = Field(default=0, ge=0, le=128)
+    max_line_width: int = Field(default=100, ge=1, le=500)
+    retry_max_failures: int = Field(default=3, ge=1, le=20)
+    retry_delay_seconds: int = Field(default=2, ge=0, le=300)
+
+
 class RecordingConfig(BaseModel):
     output_dir: str | None = None
     quality: str = Field(default="best", min_length=1)
     convert_to_mp4: bool = True
     retry_delay_seconds: int = Field(default=10, ge=3, le=300)
     tools: RecordingToolsConfig = Field(default_factory=RecordingToolsConfig)
+    fastwhisper: FastWhisperConfig = Field(default_factory=FastWhisperConfig)
 
 
 class StartupConfig(BaseModel):
@@ -98,6 +112,9 @@ class AppConfig(BaseModel):
                     override.auto_open if override.auto_open is not None else defaults.auto_open
                 ),
                 record=(override.record if override.record is not None else defaults.record),
+                auto_srt=(
+                    override.auto_srt if override.auto_srt is not None else defaults.auto_srt
+                ),
             )
             for login, override in self.streamer_configs.items()
         ]
@@ -107,6 +124,7 @@ class StreamerConfig(BaseModel):
     login: str = Field(min_length=1)
     auto_open: bool = True
     record: bool = False
+    auto_srt: bool = False
 
     @field_validator("login")
     @classmethod

@@ -5,10 +5,12 @@ client_secret = "ここにクライアントシークレットを入力"
 [streamer_default_config]
 auto_open = true # 配信開始時に自動でブラウザを開くか
 record = false   # 配信開始時に自動で録画を開始するか
+auto_srt = false # 録画完了後に自動で字幕(.srt)を作成するか
 
 [streamer_configs]
 streamer1 = {}
 streamer2 = { record = true }
+streamer3 = { record = true, auto_srt = true }
 
 [chrome]
 profile_email = "ここに Chrome プロフィールのメールアドレスを入力"
@@ -40,6 +42,31 @@ quality = "best"
 [recording.tools]
 streamlink_path = "streamlink"
 ffmpeg_path = "ffmpeg"
+
+[recording.fastwhisper]
+# faster-whisper 実行ファイルのパス
+fast_whisper_path = "faster-whisper"
+
+# 使用モデル（base, small, medium, large-v3, turbo など）
+model = "base"
+
+# 推論デバイス（cpu, cuda）
+device = "cpu"
+
+# 文字起こし言語（空文字で自動判定）
+language = ""
+
+# 使用スレッド数（0で自動）
+threads = 0
+
+# 字幕1行あたりの最大文字幅
+max_line_width = 100
+
+# 字幕生成失敗時の最大再試行回数
+retry_max_failures = 3
+
+# 字幕生成失敗時の再試行待機時間（秒）
+retry_delay_seconds = 2
 
 [startup]
 # Windows スタートアップ登録を行うか
