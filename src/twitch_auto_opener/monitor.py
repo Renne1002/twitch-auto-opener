@@ -26,11 +26,11 @@ class MonitorService:
         self._url_opener = url_opener
         self._recorder = recorder
         self._debug = debug
-        self._streamer_flags_by_login: dict[str, tuple[bool, bool]] = {
-            item.login: (item.auto_open, item.record) for item in streamers
+        self._streamer_flags_by_login: dict[str, tuple[bool, bool, bool]] = {
+            item.login: (item.auto_open, item.record, item.auto_srt) for item in streamers
         }
         self._login_by_user_id: dict[str, str] = {}
-        self._flags_by_user_id: dict[str, tuple[bool, bool]] = {}
+        self._flags_by_user_id: dict[str, tuple[bool, bool, bool]] = {}
         self._previous_live_ids: set[str] = set()
 
     def _debug_log(self, message: str) -> None:
@@ -76,7 +76,7 @@ class MonitorService:
             newly_live = live_ids - self._previous_live_ids
             for user_id in newly_live:
                 login = self._login_by_user_id[user_id]
-                auto_open, _record = self._flags_by_user_id[user_id]
+                auto_open, _record, _auto_srt = self._flags_by_user_id[user_id]
                 if not auto_open:
                     continue
                 url = f"https://www.twitch.tv/{login}"
@@ -86,7 +86,7 @@ class MonitorService:
             if self._recorder:
                 for user_id in live_ids:
                     login = self._login_by_user_id[user_id]
-                    _auto_open, record = self._flags_by_user_id[user_id]
+                    _auto_open, record, auto_srt = self._flags_by_user_id[user_id]
                     if not record:
                         continue
                     url = f"https://www.twitch.tv/{login}"
@@ -95,6 +95,7 @@ class MonitorService:
                         login=login,
                         url=url,
                         is_live_now=lambda uid=user_id: uid in self._fetch_live([uid]),
+                        auto_srt=auto_srt,
                     )
 
             self._previous_live_ids = live_ids

@@ -11,7 +11,7 @@ from twitch_auto_opener.chrome_launcher import (
     open_stream_url,
     resolve_chrome_target,
 )
-from twitch_auto_opener.config import load_config
+from twitch_auto_opener.config import FastWhisperConfig, load_config
 from twitch_auto_opener.monitor import MonitorService
 from twitch_auto_opener.recorder import TwitchRecorder
 from twitch_auto_opener.single_instance import SingleInstance, SingleInstanceError
@@ -103,6 +103,7 @@ def run() -> None:
             quality=config.recording.quality,
             convert_to_mp4=config.recording.convert_to_mp4,
             retry_delay_seconds=config.recording.retry_delay_seconds,
+            fastwhisper_config=config.recording.fastwhisper,
             debug=config.monitor.debug,
         ),
         debug=config.monitor.debug,

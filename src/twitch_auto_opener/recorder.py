@@ -7,6 +7,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
+from twitch_auto_opener.config import FastWhisperConfig
+
 
 class TwitchRecorder:
     def __init__(
@@ -17,6 +19,7 @@ class TwitchRecorder:
         quality: str,
         convert_to_mp4: bool,
         retry_delay_seconds: int,
+        fastwhisper_config: FastWhisperConfig | None = None,
         debug: bool = False,
     ) -> None:
         self._output_dir = output_dir
@@ -25,6 +28,7 @@ class TwitchRecorder:
         self._quality = quality
         self._convert_to_mp4 = convert_to_mp4
         self._retry_delay_seconds = retry_delay_seconds
+        self._fastwhisper_config = fastwhisper_config
         self._debug = debug
         self._active_threads: dict[str, threading.Thread] = {}
         self._lock = threading.Lock()
@@ -115,12 +119,68 @@ class TwitchRecorder:
         else:
             print(f"[warn] ffmpeg conversion failed (code={completed.returncode}); keep ts file")
 
+    def _build_fastwhisper_command(self, video_path: Path) -> list[str]:
+        fw = self._fastwhisper_config
+        assert fw is not None
+        command = [
+            fw.fast_whisper_path,
+            str(video_path),
+            "--beep_off",
+            "--model", fw.model,
+            "--device", fw.device,
+            "--max_line_width", str(fw.max_line_width),
+            "--threads", str(fw.threads),
+            "--output_dir", str(video_path.parent),
+        ]
+        if fw.language:
+            command.extend(["--language", fw.language])
+        return command
+
+    def _generate_subtitle_if_needed(self, video_path: Path, login: str) -> None:
+        fw = self._fastwhisper_config
+        if fw is None:
+            print(f"[warn] auto_srt is enabled for {login} but fastwhisper_config is not set; skip")
+            return
+
+        if not video_path.exists():
+            print(f"[warn] subtitle generation skipped: video file not found: {video_path}")
+            return
+
+        srt_path = video_path.with_suffix(".srt")
+        command = self._build_fastwhisper_command(video_path)
+        self._debug_log(f"subtitle generation start: {video_path.name} -> {srt_path.name}")
+        print(f"[info] subtitle generation started: {video_path.name}")
+
+        for attempt in range(1, fw.retry_max_failures + 1):
+            try:
+                completed = subprocess.run(command, check=False)
+            except FileNotFoundError:
+                print(f"[warn] faster-whisper not found: {fw.fast_whisper_path}; skip subtitle generation")
+                return
+            except Exception as exc:
+                print(f"[warn] faster-whisper execution error (attempt {attempt}/{fw.retry_max_failures}): {exc}")
+            else:
+                if completed.returncode == 0 and srt_path.exists() and srt_path.stat().st_size > 0:
+                    print(f"[info] subtitle saved: {srt_path.name}")
+                    return
+                print(
+                    f"[warn] faster-whisper failed (code={completed.returncode}, "
+                    f"attempt {attempt}/{fw.retry_max_failures})"
+                )
+
+            if attempt < fw.retry_max_failures:
+                self._debug_log(f"subtitle retry in {fw.retry_delay_seconds}s")
+                time.sleep(fw.retry_delay_seconds)
+
+        print(f"[warn] subtitle generation gave up after {fw.retry_max_failures} attempt(s): {video_path.name}")
+
     def _run_recording_loop(
         self,
         user_id: str,
         login: str,
         url: str,
         is_live_now: Callable[[], bool],
+        auto_srt: bool = False,
     ) -> None:
         session_ts = self._timestamp()
         part = 1
@@ -139,6 +199,8 @@ class TwitchRecorder:
             return_code = self._record_once(url, output_path)
             if return_code == 0:
                 self._convert_to_mp4_if_needed(output_path)
+                if auto_srt:
+                    self._generate_subtitle_if_needed(output_path, login)
                 print(f"[info] recording session ended for {login}")
                 break
 
@@ -151,6 +213,8 @@ class TwitchRecorder:
             if not still_live:
                 if output_path.exists() and output_path.stat().st_size > 0:
                     self._convert_to_mp4_if_needed(output_path)
+                    if auto_srt:
+                        self._generate_subtitle_if_needed(output_path, login)
                 print(f"[info] stream appears offline; stop recording retries for {login}")
                 break
 
@@ -171,6 +235,7 @@ class TwitchRecorder:
         login: str,
         url: str,
         is_live_now: Callable[[], bool],
+        auto_srt: bool = False,
     ) -> None:
         with self._lock:
             thread = self._active_threads.get(user_id)
@@ -179,7 +244,7 @@ class TwitchRecorder:
 
             worker = threading.Thread(
                 target=self._run_recording_loop,
-                args=(user_id, login, url, is_live_now),
+                args=(user_id, login, url, is_live_now, auto_srt),
                 daemon=True,
                 name=f"recorder-{login}",
             )
