@@ -57,28 +57,28 @@ mise run dev
 mise run build
 
 # or
-mise run build:windows_on_wsl # [output-dir]
+mise run build:windows_on_wsl "C:\\Users\\<username>\\Desktop\\twitch-build"
 ```
 
 ## 主要設定項目
 
 ### 配信者フラグ（`[streamer_default_config]` / `[streamer_configs]`）
 
-| キー | 既定値 | 説明 |
-| --- | --- | --- |
-| `auto_open` | `true` | 配信開始時にブラウザで自動オープン |
-| `record` | `false` | 配信開始時に自動録画 |
-| `auto_srt` | `false` | 録画完了後に字幕（`.srt`）を自動生成。`record = true` との併用が必要 |
+| キー        | 既定値  | 説明                                                                 |
+| ----------- | ------- | -------------------------------------------------------------------- |
+| `auto_open` | `true`  | 配信開始時にブラウザで自動オープン                                   |
+| `record`    | `false` | 配信開始時に自動録画                                                 |
+| `auto_srt`  | `false` | 録画完了後に字幕（`.srt`）を自動生成。`record = true` との併用が必要 |
 
 ### 字幕生成設定（`[recording.fastwhisper]`）
 
-| キー | 既定値 | 説明 |
-| --- | --- | --- |
-| `fast_whisper_path` | `faster-whisper` | faster-whisper 実行ファイルのパス |
-| `model` | `base` | 使用モデル（`base` / `small` / `medium` / `large-v3` / `turbo` など） |
-| `device` | `cpu` | 推論デバイス（`cpu` / `cuda`） |
-| `language` | `""` | 文字起こし言語（空文字で自動判定） |
-| `threads` | `0` | 使用スレッド数（`0` で自動） |
-| `max_line_width` | `100` | 字幕 1 行あたりの最大文字幅 |
-| `retry_max_failures` | `3` | 字幕生成失敗時の最大再試行回数 |
-| `retry_delay_seconds` | `2` | 再試行待機時間（秒） |
+| キー                  | 既定値           | 説明                                                                  |
+| --------------------- | ---------------- | --------------------------------------------------------------------- |
+| `fast_whisper_path`   | `faster-whisper` | faster-whisper 実行ファイルのパス                                     |
+| `model`               | `base`           | 使用モデル（`base` / `small` / `medium` / `large-v3` / `turbo` など） |
+| `device`              | `cpu`            | 推論デバイス（`cpu` / `cuda`）                                        |
+| `language`            | `""`             | 文字起こし言語（空文字で自動判定）                                    |
+| `threads`             | `0`              | 使用スレッド数（`0` で自動）                                          |
+| `max_line_width`      | `100`            | 字幕 1 行あたりの最大文字幅                                           |
+| `retry_max_failures`  | `3`              | 字幕生成失敗時の最大再試行回数                                        |
+| `retry_delay_seconds` | `2`              | 再試行待機時間（秒）                                                  |
