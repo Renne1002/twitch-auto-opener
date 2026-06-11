@@ -55,6 +55,15 @@ class FastWhisperConfig(BaseModel):
     retry_delay_seconds: int = Field(default=2, ge=0, le=300)
 
 
+class ChatConfig(BaseModel):
+    enabled: bool = False
+    capture_moderation_events: bool = True
+    reconnect_delay_seconds: int = Field(default=5, ge=1, le=300)
+    connect_timeout_seconds: int = Field(default=15, ge=3, le=300)
+    read_timeout_seconds: int = Field(default=120, ge=10, le=3600)
+    debug: bool = False
+
+
 class RecordingConfig(BaseModel):
     output_dir: str | None = None
     quality: str = Field(default="best", min_length=1)
@@ -62,6 +71,7 @@ class RecordingConfig(BaseModel):
     retry_delay_seconds: int = Field(default=10, ge=3, le=300)
     tools: RecordingToolsConfig = Field(default_factory=RecordingToolsConfig)
     fastwhisper: FastWhisperConfig = Field(default_factory=FastWhisperConfig)
+    chat: ChatConfig = Field(default_factory=ChatConfig)
 
 
 class StartupConfig(BaseModel):

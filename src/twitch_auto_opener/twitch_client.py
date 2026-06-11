@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass
+from datetime import UTC, datetime
 from collections.abc import Awaitable, Coroutine
 from concurrent.futures import Future
 from threading import Event, Thread
@@ -11,6 +13,13 @@ from twitchAPI.twitch import Twitch
 
 class TwitchApiError(RuntimeError):
     """Raised when Twitch API calls fail."""
+
+
+@dataclass(frozen=True)
+class LiveStreamInfo:
+    user_id: str
+    stream_id: str
+    started_at_utc: str
 
 
 class TwitchClient:
@@ -87,16 +96,40 @@ class TwitchClient:
 
         return self._run(_resolve())
 
-    def fetch_live_user_ids(self, user_ids: list[str]) -> set[str]:
-        if not user_ids:
-            return set()
+    @staticmethod
+    def _to_utc_iso(value: Any) -> str:
+        if isinstance(value, datetime):
+            dt = value
+        else:
+            dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
 
-        async def _fetch() -> set[str]:
-            live_ids: set[str] = set()
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=UTC)
+        else:
+            dt = dt.astimezone(UTC)
+        return dt.isoformat().replace("+00:00", "Z")
+
+    def fetch_live_streams(self, user_ids: list[str]) -> dict[str, LiveStreamInfo]:
+        if not user_ids:
+            return {}
+
+        async def _fetch() -> dict[str, LiveStreamInfo]:
+            by_user_id: dict[str, LiveStreamInfo] = {}
             async for stream in self._twitch.get_streams(user_id=user_ids):
                 user_id = str(stream.user_id).strip()
-                if user_id:
-                    live_ids.add(user_id)
-            return live_ids
+                stream_id = str(stream.id).strip()
+                started_at = stream.started_at
+                if not user_id or not stream_id or not started_at:
+                    continue
+
+                by_user_id[user_id] = LiveStreamInfo(
+                    user_id=user_id,
+                    stream_id=stream_id,
+                    started_at_utc=self._to_utc_iso(started_at),
+                )
+            return by_user_id
 
         return self._run(_fetch())
+
+    def fetch_live_user_ids(self, user_ids: list[str]) -> set[str]:
+        return set(self.fetch_live_streams(user_ids).keys())

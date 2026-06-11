@@ -7,7 +7,7 @@ from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_excep
 
 from twitch_auto_opener.config import StreamerConfig
 from twitch_auto_opener.recorder import TwitchRecorder
-from twitch_auto_opener.twitch_client import TwitchApiError, TwitchClient
+from twitch_auto_opener.twitch_client import LiveStreamInfo, TwitchApiError, TwitchClient
 
 
 class MonitorService:
@@ -55,8 +55,8 @@ class MonitorService:
         stop=stop_after_attempt(10),
         reraise=True,
     )
-    def _fetch_live(self, user_ids: list[str]) -> set[str]:
-        return self._twitch_client.fetch_live_user_ids(user_ids)
+    def _fetch_live(self, user_ids: list[str]) -> dict[str, LiveStreamInfo]:
+        return self._twitch_client.fetch_live_streams(user_ids)
 
     def run_forever(self) -> None:
         if not self._login_by_user_id:
@@ -68,11 +68,12 @@ class MonitorService:
                 f"poll start: monitored={len(user_ids)} interval={self._check_interval_seconds}s"
             )
             try:
-                live_ids = self._fetch_live(user_ids)
+                live_by_user_id = self._fetch_live(user_ids)
             except TwitchApiError as exc:
                 print(f"[error] twitch api permanently failed: {exc}")
                 raise
 
+            live_ids = set(live_by_user_id.keys())
             newly_live = live_ids - self._previous_live_ids
             for user_id in newly_live:
                 login = self._login_by_user_id[user_id]
@@ -89,12 +90,17 @@ class MonitorService:
                     _auto_open, record, auto_srt = self._flags_by_user_id[user_id]
                     if not record:
                         continue
+                    stream_info = live_by_user_id.get(user_id)
+                    if stream_info is None:
+                        continue
                     url = f"https://www.twitch.tv/{login}"
                     self._recorder.ensure_recording(
                         user_id=user_id,
                         login=login,
                         url=url,
                         is_live_now=lambda uid=user_id: uid in self._fetch_live([uid]),
+                        stream_id=stream_info.stream_id,
+                        stream_started_at_utc=stream_info.started_at_utc,
                         auto_srt=auto_srt,
                     )
 

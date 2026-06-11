@@ -25,6 +25,12 @@
 - `ffmpeg` 実行ファイル
   `recording.convert_to_mp4 = true` の場合に必要です。`false` なら不要です。
 
+### ライブコメント保存を有効にする場合
+
+- Twitch IRC へ接続できるネットワーク
+  - 本アプリは匿名 read-only 接続（`justinfan`）でコメントを取得します。
+  - VOD 後追い補完は行いません。ライブ中に取得できたイベントのみ保存します。
+
 ### 自動字幕生成を有効にする場合
 
 - `faster-whisper` 実行ファイル（[Faster-Whisper-XXL](https://github.com/Purfview/whisper-standalone-win) など）
@@ -82,3 +88,31 @@ mise run build:windows_on_wsl "C:\\Users\\<username>\\Desktop\\twitch-build"
 | `max_line_width`      | `100`            | 字幕 1 行あたりの最大文字幅                                           |
 | `retry_max_failures`  | `3`              | 字幕生成失敗時の最大再試行回数                                        |
 | `retry_delay_seconds` | `2`              | 再試行待機時間（秒）                                                  |
+
+### コメント保存設定（`[recording.chat]`）
+
+| キー                        | 既定値  | 説明                                                                |
+| --------------------------- | ------- | ------------------------------------------------------------------- |
+| `enabled`                   | `false` | IRCリアルタイムコメント保存を有効化                                 |
+| `capture_moderation_events` | `true`  | `CLEARCHAT`/`CLEARMSG`/`USERNOTICE`/`NOTICE`/`ROOMSTATE` も保存する |
+| `reconnect_delay_seconds`   | `5`     | IRC 切断時の再接続待機時間（秒）                                    |
+| `connect_timeout_seconds`   | `15`    | IRC 接続タイムアウト（秒）                                          |
+| `read_timeout_seconds`      | `120`   | IRC 読み取りタイムアウト（秒）                                      |
+| `debug`                     | `false` | コメント保存のデバッグログ                                          |
+
+## コメント保存フォーマット
+
+`recording.chat.enabled = true` のとき、録画ファイルと同じ配信者ディレクトリに以下を保存します。
+
+- `<login>_<session_ts>.chat.session.json`
+  - セッションメタデータ（stream_id、アンカー時刻、統計）
+- `<login>_<session_ts>.chat.jsonl`
+  - 1行1イベントの JSONL
+  - 主な項目: `event_type`, `sent_at_utc`, `rel_stream_ms`, `rel_record_ms`, `message`, `tags`
+
+同期用アンカーは以下を両方保持します。
+
+- `stream_started_at_utc`: Twitch 側の配信開始時刻
+- `recorder_first_byte_at_utc`: 録画側の開始アンカー時刻
+
+`rel_stream_ms` と `rel_record_ms` は用途別に使い分けられます。mpv 連動用途では通常 `rel_record_ms` を使用します。

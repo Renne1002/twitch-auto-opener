@@ -11,7 +11,8 @@ from twitch_auto_opener.chrome_launcher import (
     open_stream_url,
     resolve_chrome_target,
 )
-from twitch_auto_opener.config import FastWhisperConfig, load_config
+from twitch_auto_opener.chat_recorder import ChatRecorder
+from twitch_auto_opener.config import load_config
 from twitch_auto_opener.monitor import MonitorService
 from twitch_auto_opener.recorder import TwitchRecorder
 from twitch_auto_opener.single_instance import SingleInstance, SingleInstanceError
@@ -104,6 +105,7 @@ def run() -> None:
             convert_to_mp4=config.recording.convert_to_mp4,
             retry_delay_seconds=config.recording.retry_delay_seconds,
             fastwhisper_config=config.recording.fastwhisper,
+            chat_recorder=ChatRecorder(config.recording.chat),
             debug=config.monitor.debug,
         ),
         debug=config.monitor.debug,
@@ -111,6 +113,8 @@ def run() -> None:
 
     def _shutdown(*_args: object) -> None:
         print("[info] shutdown signal received")
+        if monitor._recorder:
+            monitor._recorder.stop_all_chat_sessions(reason="process-shutdown")
         twitch_client.close()
         if lock:
             lock.release()

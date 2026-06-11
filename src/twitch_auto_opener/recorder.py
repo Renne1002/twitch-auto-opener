@@ -3,10 +3,11 @@ from __future__ import annotations
 import subprocess
 import threading
 import time
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Callable
 
+from twitch_auto_opener.chat_recorder import ChatRecorder
 from twitch_auto_opener.config import FastWhisperConfig
 
 
@@ -20,6 +21,7 @@ class TwitchRecorder:
         convert_to_mp4: bool,
         retry_delay_seconds: int,
         fastwhisper_config: FastWhisperConfig | None = None,
+        chat_recorder: ChatRecorder | None = None,
         debug: bool = False,
     ) -> None:
         self._output_dir = output_dir
@@ -29,9 +31,14 @@ class TwitchRecorder:
         self._convert_to_mp4 = convert_to_mp4
         self._retry_delay_seconds = retry_delay_seconds
         self._fastwhisper_config = fastwhisper_config
+        self._chat_recorder = chat_recorder
         self._debug = debug
         self._active_threads: dict[str, threading.Thread] = {}
         self._lock = threading.Lock()
+
+    def stop_all_chat_sessions(self, reason: str = "process-shutdown") -> None:
+        if self._chat_recorder:
+            self._chat_recorder.stop_all(reason=reason)
 
     def _debug_log(self, message: str) -> None:
         if self._debug:
@@ -40,6 +47,10 @@ class TwitchRecorder:
     @staticmethod
     def _timestamp() -> str:
         return datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    @staticmethod
+    def _utc_now_iso() -> str:
+        return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
     @staticmethod
     def _sanitize_name(name: str) -> str:
@@ -180,9 +191,12 @@ class TwitchRecorder:
         login: str,
         url: str,
         is_live_now: Callable[[], bool],
+        stream_id: str,
+        stream_started_at_utc: str,
         auto_srt: bool = False,
     ) -> None:
         session_ts = self._timestamp()
+        recorder_requested_at_utc = self._utc_now_iso()
         part = 1
         streamer_output_dir = self._build_streamer_output_dir(login)
 
@@ -194,14 +208,32 @@ class TwitchRecorder:
 
         print(f"[info] start VOD recording for {login}: output_dir={streamer_output_dir}")
 
+        if self._chat_recorder:
+            self._chat_recorder.start_session(
+                user_id=user_id,
+                login=login,
+                session_id=session_ts,
+                output_dir=streamer_output_dir,
+                stream_id=stream_id,
+                stream_started_at_utc=stream_started_at_utc,
+                recorder_requested_at_utc=recorder_requested_at_utc,
+            )
+
         while True:
             output_path = self._build_ts_path(streamer_output_dir, login, session_ts, part)
+            if self._chat_recorder:
+                self._chat_recorder.set_recorder_anchor(
+                    user_id=user_id,
+                    recorder_first_byte_at_utc=self._utc_now_iso(),
+                )
             return_code = self._record_once(url, output_path)
             if return_code == 0:
                 self._convert_to_mp4_if_needed(output_path)
                 if auto_srt:
                     self._generate_subtitle_if_needed(output_path, login)
                 print(f"[info] recording session ended for {login}")
+                if self._chat_recorder:
+                    self._chat_recorder.stop_session(user_id=user_id, reason="recording-ended")
                 break
 
             try:
@@ -216,6 +248,8 @@ class TwitchRecorder:
                     if auto_srt:
                         self._generate_subtitle_if_needed(output_path, login)
                 print(f"[info] stream appears offline; stop recording retries for {login}")
+                if self._chat_recorder:
+                    self._chat_recorder.stop_session(user_id=user_id, reason="stream-offline")
                 break
 
             part += 1
@@ -235,6 +269,8 @@ class TwitchRecorder:
         login: str,
         url: str,
         is_live_now: Callable[[], bool],
+        stream_id: str,
+        stream_started_at_utc: str,
         auto_srt: bool = False,
     ) -> None:
         with self._lock:
@@ -244,7 +280,15 @@ class TwitchRecorder:
 
             worker = threading.Thread(
                 target=self._run_recording_loop,
-                args=(user_id, login, url, is_live_now, auto_srt),
+                args=(
+                    user_id,
+                    login,
+                    url,
+                    is_live_now,
+                    stream_id,
+                    stream_started_at_utc,
+                    auto_srt,
+                ),
                 daemon=True,
                 name=f"recorder-{login}",
             )

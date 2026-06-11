@@ -68,6 +68,25 @@ retry_max_failures = 3
 # 字幕生成失敗時の再試行待機時間（秒）
 retry_delay_seconds = 2
 
+[recording.chat]
+# IRCリアルタイムコメント取得を有効にするか
+enabled = false
+
+# モデレーションイベント(CLEARCHAT/CLEARMSG/USERNOTICE/NOTICE/ROOMSTATE)を保存するか
+capture_moderation_events = true
+
+# IRC切断時の再接続待機時間（秒）
+reconnect_delay_seconds = 5
+
+# IRC接続タイムアウト（秒）
+connect_timeout_seconds = 15
+
+# IRC読み取りタイムアウト（秒）
+read_timeout_seconds = 120
+
+# chat収集のデバッグログ
+debug = false
+
 [startup]
 # Windows スタートアップ登録を行うか
 enabled = false
