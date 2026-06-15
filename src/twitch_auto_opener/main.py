@@ -111,13 +111,23 @@ def run() -> None:
         debug=config.monitor.debug,
     )
 
-    def _shutdown(*_args: object) -> None:
-        print("[info] shutdown signal received")
+    cleaned_up = False
+
+    def _cleanup() -> None:
+        nonlocal cleaned_up
+        if cleaned_up:
+            return
+        cleaned_up = True
+
         if monitor._recorder:
             monitor._recorder.stop_all_chat_sessions(reason="process-shutdown")
         twitch_client.close()
         if lock:
             lock.release()
+
+    def _shutdown(*_args: object) -> None:
+        print("[info] shutdown signal received")
+        _cleanup()
         raise SystemExit(0)
 
     signal.signal(signal.SIGINT, _shutdown)
@@ -126,7 +136,10 @@ def run() -> None:
     print("[info] setup monitor")
     monitor.setup()
     print("[info] monitoring started")
-    monitor.run_forever()
+    try:
+        monitor.run_forever()
+    finally:
+        _cleanup()
 
 
 if __name__ == "__main__":

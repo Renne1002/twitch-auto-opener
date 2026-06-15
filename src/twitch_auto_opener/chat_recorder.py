@@ -63,6 +63,7 @@ class _SessionState:
     ended_at_utc: str | None = None
     event_count_total: int = 0
     event_count_by_type: dict[str, int] = field(default_factory=dict)
+    active_client: TwitchIrcClient | None = None
 
 
 class ChatRecorder:
@@ -190,9 +191,14 @@ class ChatRecorder:
         state.stop_reason = reason
         state.stop_event.set()
 
+        with state.lock:
+            active_client = state.active_client
+        if active_client is not None:
+            active_client.close()
+
         thread = state.thread
         if thread and thread.is_alive():
-            thread.join(timeout=5)
+            thread.join(timeout=max(5, state.read_timeout_seconds + 2))
 
         with state.lock:
             state.ended_at_utc = _utc_now_iso()
@@ -259,6 +265,8 @@ class ChatRecorder:
                     read_timeout_seconds=state.read_timeout_seconds,
                     debug=state.debug,
                 )
+                with state.lock:
+                    state.active_client = client
 
                 try:
                     client.connect()
@@ -286,3 +294,6 @@ class ChatRecorder:
                     time.sleep(state.reconnect_delay_seconds)
                 finally:
                     client.close()
+                    with state.lock:
+                        if state.active_client is client:
+                            state.active_client = None

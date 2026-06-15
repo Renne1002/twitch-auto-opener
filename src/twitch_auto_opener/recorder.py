@@ -66,7 +66,12 @@ class TwitchRecorder:
         filename = f"{safe_login}_{session_ts}_part{part:03d}.ts"
         return streamer_output_dir / filename
 
-    def _record_once(self, url: str, output_path: Path) -> int:
+    def _record_once(
+        self,
+        url: str,
+        output_path: Path,
+        on_first_byte: Callable[[], None] | None = None,
+    ) -> int:
         command = [
             self._streamlink_path,
             "--twitch-disable-ads",
@@ -81,7 +86,7 @@ class TwitchRecorder:
         ]
         print(f"[info] recording started: {output_path.name}")
         try:
-            completed = subprocess.run(command, check=False)
+            process = subprocess.Popen(command)
         except FileNotFoundError:
             print(f"[error] streamlink not found: {self._streamlink_path}")
             return 127
@@ -89,10 +94,27 @@ class TwitchRecorder:
             print(f"[error] streamlink execution failed: {exc}")
             return 1
 
+        first_byte_notified = False
+        while True:
+            return_code = process.poll()
+
+            if not first_byte_notified and on_first_byte is not None:
+                try:
+                    if output_path.exists() and output_path.stat().st_size > 0:
+                        on_first_byte()
+                        first_byte_notified = True
+                except OSError:
+                    pass
+
+            if return_code is not None:
+                break
+
+            time.sleep(0.5)
+
         self._debug_log(
-            f"streamlink finished: returncode={completed.returncode} file={output_path.name}"
+            f"streamlink finished: returncode={return_code} file={output_path.name}"
         )
-        return completed.returncode
+        return return_code
 
     def _convert_to_mp4_if_needed(self, ts_path: Path) -> None:
         if not self._convert_to_mp4:
@@ -221,12 +243,15 @@ class TwitchRecorder:
 
         while True:
             output_path = self._build_ts_path(streamer_output_dir, login, session_ts, part)
-            if self._chat_recorder:
-                self._chat_recorder.set_recorder_anchor(
-                    user_id=user_id,
-                    recorder_first_byte_at_utc=self._utc_now_iso(),
-                )
-            return_code = self._record_once(url, output_path)
+
+            def _on_first_byte() -> None:
+                if self._chat_recorder:
+                    self._chat_recorder.set_recorder_anchor(
+                        user_id=user_id,
+                        recorder_first_byte_at_utc=self._utc_now_iso(),
+                    )
+
+            return_code = self._record_once(url, output_path, on_first_byte=_on_first_byte)
             if return_code == 0:
                 self._convert_to_mp4_if_needed(output_path)
                 if auto_srt:

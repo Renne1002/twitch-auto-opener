@@ -165,6 +165,8 @@ class TwitchIrcClient:
                 chunk = self._socket.recv(4096)
             except socket.timeout:
                 return None
+            except OSError as exc:
+                raise ConnectionError("irc connection read failed") from exc
             if not chunk:
                 raise ConnectionError("irc connection closed by remote host")
             self._buffer += chunk
