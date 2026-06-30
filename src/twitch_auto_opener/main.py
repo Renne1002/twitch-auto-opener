@@ -52,7 +52,8 @@ def run() -> None:
     args = _parse_args()
     is_windows = platform.system() == "Windows"
 
-    config = load_config(args.config)
+    config_path_obj = Path(args.config).expanduser().resolve()
+    config = load_config(config_path_obj)
     app_base_dir = _resolve_app_base_dir()
     vod_output_dir = _resolve_vod_output_dir(config.recording.output_dir, app_base_dir)
 
@@ -67,7 +68,7 @@ def run() -> None:
     else:
         print("[warn] non-Windows mode: startup registration and profile-specific launch are disabled")
 
-    config_path = str(Path(args.config).resolve())
+    config_path = str(config_path_obj)
     if is_windows and config.startup.enabled:
         if getattr(sys, "frozen", False):
             startup_command = f'"{sys.executable}" --config "{config_path}"'
@@ -113,6 +114,7 @@ def run() -> None:
             config=config,
             output_dir=vod_output_dir,
             app_base_dir=app_base_dir,
+            config_base_dir=config_path_obj.parent,
         ),
         debug=config.monitor.debug,
     )

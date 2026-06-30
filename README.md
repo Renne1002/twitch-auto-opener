@@ -73,15 +73,33 @@ mise run install && mise run init
 2. `config.toml` に以下を設定
   - `youtube.auth.client_secrets_file`
   - `youtube.auth.token_file`
-3. 初回認証コマンドを実行
+3. 実行ディレクトリをプロジェクトルートに移動
+
+```bash
+cd /path/to/twitch-auto-opener
+```
+
+4. 初回認証を実行（どちらか1つ）
+
+開発中（ソースから実行）:
 
 ```bash
 python -m twitch_auto_opener.youtube_auth --config config.toml
-# または
+```
+
+スクリプトをインストール済み（`youtube-auth` が PATH にある）:
+
+```bash
 youtube-auth --config config.toml
 ```
 
-4. ブラウザで同意後、`token_file` にトークンが保存されることを確認
+5. ブラウザで同意後、`youtube.auth.token_file` に設定したパスへトークンが保存されることを確認
+
+補足:
+
+- `--config config.toml` は「現在の作業ディレクトリから見た相対パス」です。
+- `youtube.auth.client_secrets_file` と `youtube.auth.token_file` も、相対パスの場合は実行時の作業ディレクトリ基準で解決されます。
+- そのため、迷った場合は必ずプロジェクトルートで実行するのが安全です。
 
 ## 実行
 
@@ -134,38 +152,38 @@ mise run build:windows_on_wsl "C:\\Users\\<username>\\Desktop\\twitch-build"
 
 ### YouTube 全体設定（`[youtube]`）
 
-| キー                      | 既定値                            | 説明                                                     |
-| ------------------------- | --------------------------------- | -------------------------------------------------------- |
-| `enabled`                 | `true`                            | YouTube 自動アップロード機能の有効化                     |
-| `min_age_days`            | `7`                               | アップロード対象にする録画ファイルの最低経過日数（最小2） |
-| `tick_interval_seconds`   | `300`                             | アップロード処理の実行間隔（秒）                         |
-| `state_file`              | `./VOD/.youtube_upload_state.json` | 重複防止・リトライ制御用の状態ファイル                    |
-| `history_file`            | `./VOD/.youtube_upload_history.jsonl` | 監査用の履歴ファイル（JSONL）                            |
-| `max_uploads_per_tick`    | `1`                               | 1回の tick で処理する最大アップロード本数                |
+| キー                    | 既定値                                | 説明                                                      |
+| ----------------------- | ------------------------------------- | --------------------------------------------------------- |
+| `enabled`               | `true`                                | YouTube 自動アップロード機能の有効化                      |
+| `min_age_days`          | `7`                                   | アップロード対象にする録画ファイルの最低経過日数（最小2） |
+| `tick_interval_seconds` | `300`                                 | アップロード処理の実行間隔（秒）                          |
+| `state_file`            | `./VOD/.youtube_upload_state.json`    | 重複防止・リトライ制御用の状態ファイル                    |
+| `history_file`          | `./VOD/.youtube_upload_history.jsonl` | 監査用の履歴ファイル（JSONL）                             |
+| `max_uploads_per_tick`  | `1`                                   | 1回の tick で処理する最大アップロード本数                 |
 
 ### YouTube 認証設定（`[youtube.auth]`）
 
-| キー                  | 既定値 | 説明                                  |
-| --------------------- | ------ | ------------------------------------- |
-| `client_secrets_file` | `""`  | GCP で取得した OAuth クライアント JSON |
-| `token_file`          | `""`  | 初回認証で生成するトークン保存先       |
+| キー                  | 既定値 | 説明                                   |
+| --------------------- | ------ | -------------------------------------- |
+| `client_secrets_file` | `""`   | GCP で取得した OAuth クライアント JSON |
+| `token_file`          | `""`   | 初回認証で生成するトークン保存先       |
 
 ### YouTube デフォルト動画設定（`[youtube.defaults]`）
 
-| キー                      | 既定値                                 | 説明                                                     |
-| ------------------------- | -------------------------------------- | -------------------------------------------------------- |
-| `privacy_status`          | `unlisted`                             | 公開範囲 (`private` / `unlisted` / `public`)            |
-| `title_template`          | `【Twitch】{id} {ts:%Y-%m-%d %H:%M}`   | タイトルテンプレート（`{id}` / `{ts:strftime}` 対応）    |
-| `category_id`             | `20`                                   | YouTube 動画カテゴリ ID                                  |
-| `made_for_kids`           | `false`                                | 子ども向けコンテンツ設定                                 |
-| `delete_ts_after_upload`  | `false`                                | アップロード成功後に `.ts` を削除するか                 |
+| キー                     | 既定値                               | 説明                                                  |
+| ------------------------ | ------------------------------------ | ----------------------------------------------------- |
+| `privacy_status`         | `unlisted`                           | 公開範囲 (`private` / `unlisted` / `public`)          |
+| `title_template`         | `【Twitch】{id} {ts:%Y-%m-%d %H:%M}` | タイトルテンプレート（`{id}` / `{ts:strftime}` 対応） |
+| `category_id`            | `20`                                 | YouTube 動画カテゴリ ID                               |
+| `made_for_kids`          | `false`                              | 子ども向けコンテンツ設定                              |
+| `delete_ts_after_upload` | `false`                              | アップロード成功後に `.ts` を削除するか               |
 
 ### YouTube クォータ制御（`[youtube.quota]`）
 
-| キー                                | 既定値                 | 説明                                                 |
-| ----------------------------------- | ---------------------- | ---------------------------------------------------- |
-| `quota_reset_timezone`              | `America/Los_Angeles`  | 日次クォータリセット判定に使うタイムゾーン           |
-| `skip_after_quota_exceeded_for_day` | `true`                 | クォータ超過時に当日アップロードを停止するか         |
+| キー                                | 既定値                | 説明                                         |
+| ----------------------------------- | --------------------- | -------------------------------------------- |
+| `quota_reset_timezone`              | `America/Los_Angeles` | 日次クォータリセット判定に使うタイムゾーン   |
+| `skip_after_quota_exceeded_for_day` | `true`                | クォータ超過時に当日アップロードを停止するか |
 
 ### Streamer ごとの YouTube 上書き設定
 

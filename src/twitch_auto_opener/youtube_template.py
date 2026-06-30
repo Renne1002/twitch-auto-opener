@@ -28,13 +28,13 @@ class TitleTemplateRenderer:
             )
 
     @staticmethod
-    def render(template: str, *, user_id: str, captured_at: datetime) -> str:
+    def render(template: str, *, login: str, captured_at: datetime) -> str:
         TitleTemplateRenderer.validate(template)
 
         def replacer(match: re.Match[str]) -> str:
             raw = match.group(1)
             if raw == "id":
-                return user_id
+                return login
             if raw.startswith("ts:"):
                 return captured_at.strftime(raw[3:])
             raise TitleTemplateError(f"unsupported placeholder: {raw}")

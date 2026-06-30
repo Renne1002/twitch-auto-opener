@@ -5,6 +5,7 @@ python = "3.12"
 install = "mise install && python -m pip install --upgrade pip && python -m pip install -e . && python -m pip install pyinstaller"
 init = "python -c \"from pathlib import Path; src=Path('config.sample.toml'); dst=Path('config.toml'); (not dst.exists()) and dst.write_text(src.read_text(encoding='utf-8'), encoding='utf-8')\""
 dev = "python -m twitch_auto_opener --config config.toml"
+"youtube:auth" = "python -m twitch_auto_opener.youtube_auth --config config.toml"
 "build:wsl" = "python -m PyInstaller --onefile --name TwitchAutoOpener.exe src/twitch_auto_opener/main.py"
 
 [tasks."build:windows_on_wsl"]

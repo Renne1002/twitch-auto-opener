@@ -64,6 +64,28 @@ class UploadHistoryWriter:
         )
         self._append(payload)
 
+    def upload_accepted_unverified(
+        self,
+        *,
+        user_id: str,
+        login: str,
+        file_path: Path,
+        video_id: str,
+        privacy_status: str,
+        title: str,
+        reason: str,
+    ) -> None:
+        payload = self._event_base("upload_accepted_unverified", user_id, login, file_path)
+        payload.update(
+            {
+                "video_id": video_id,
+                "privacy_status": privacy_status,
+                "title": title,
+                "error_reason": reason,
+            }
+        )
+        self._append(payload)
+
     def upload_skipped_quota_block(
         self,
         *,

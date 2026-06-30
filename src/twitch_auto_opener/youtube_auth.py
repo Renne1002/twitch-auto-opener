@@ -7,7 +7,10 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 
 from twitch_auto_opener.config import load_config
 
-_YOUTUBE_UPLOAD_SCOPE = "https://www.googleapis.com/auth/youtube.upload"
+_YOUTUBE_SCOPES = [
+    "https://www.googleapis.com/auth/youtube.upload",
+    "https://www.googleapis.com/auth/youtube.readonly",
+]
 
 
 def _parse_args() -> argparse.Namespace:
@@ -29,17 +32,18 @@ def _resolve_path(raw_path: str, app_base_dir: Path) -> Path:
 
 def run() -> None:
     args = _parse_args()
-    config = load_config(args.config)
+    config_path = Path(args.config).expanduser().resolve()
+    config = load_config(config_path)
 
-    app_base_dir = Path.cwd().resolve()
-    client_secrets = _resolve_path(config.youtube.auth.client_secrets_file, app_base_dir)
-    token_file = _resolve_path(config.youtube.auth.token_file, app_base_dir)
+    config_base_dir = config_path.parent
+    client_secrets = _resolve_path(config.youtube.auth.client_secrets_file, config_base_dir)
+    token_file = _resolve_path(config.youtube.auth.token_file, config_base_dir)
 
     if not client_secrets.exists():
         raise FileNotFoundError(f"youtube client secret file not found: {client_secrets}")
 
     flow = InstalledAppFlow.from_client_secrets_file(
-        str(client_secrets), scopes=[_YOUTUBE_UPLOAD_SCOPE]
+        str(client_secrets), scopes=_YOUTUBE_SCOPES
     )
     creds = flow.run_local_server(port=0, authorization_prompt_message="")
 

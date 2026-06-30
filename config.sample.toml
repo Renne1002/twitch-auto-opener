@@ -11,7 +11,7 @@ auto_srt = false # 録画完了後に自動で字幕(.srt)を作成するか
 enabled = false
 
 # Option: 配信者ごとのデフォルトタイトルテンプレート
-# title_template = "【Twitch】{id} {ts:%Y-%m-%d %H:%M}"
+# title_template = "[Twitch Recording] {id} {ts:%Y-%m-%d %H:%M}"
 
 # Option: 配信者ごとのデフォルト公開範囲 (private / unlisted / public)
 # privacy_status = "unlisted"
@@ -57,7 +57,7 @@ token_file = "./secrets/youtube_token.json"
 
 [youtube.defaults]
 privacy_status = "unlisted"
-title_template = "【Twitch】{id} {ts:%Y-%m-%d %H:%M}"
+title_template = "[Twitch Recording] {id} {ts:%Y-%m-%d %H:%M}"
 category_id = "20"
 made_for_kids = false
 delete_ts_after_upload = false
