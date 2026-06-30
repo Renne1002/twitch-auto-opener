@@ -38,6 +38,17 @@
   - 字幕生成に失敗した場合は `recording.fastwhisper.retry_max_failures` 回リトライします。最終的に失敗しても録画ファイルは保持されます（非致命）。
   - 実行ファイルのパスは `recording.fastwhisper.fast_whisper_path` で指定します。
 
+### YouTube 自動アップロードを有効にする場合
+
+- Google Cloud Project
+- YouTube Data API v3 を利用できる Google アカウント
+- OAuth クライアント情報（Desktop App）
+- 初回認証で生成した `token.json`
+
+> 注意
+> - YouTube Data API v3 の動画アップロードは、通常チャンネルではサービスアカウントではなく OAuth 2.0 が必要です。
+> - `recording.convert_to_mp4 = true` の場合、録画終了時に `.ts` は `.mp4` に変換されて削除されます。YouTube アップロード対象は `.ts` のため、アップロード運用時は `recording.convert_to_mp4 = false` を推奨します。
+
 ### 補足
 
 - exe には Python ランタイムと Python パッケージは同梱されるため、通常は別途 Python / mise は不要です。
@@ -50,6 +61,27 @@
 mise run install && mise run init
 # `config.toml` を編集
 ```
+
+### YouTube OAuth 初回認証
+
+1. GCP で以下を設定
+  - Google Cloud Project を作成
+  - `YouTube Data API v3` を有効化
+  - OAuth 同意画面を作成（External で可）
+  - OAuth クライアント ID を作成（種類: Desktop App）
+  - クライアントシークレット JSON をダウンロード
+2. `config.toml` に以下を設定
+  - `youtube.auth.client_secrets_file`
+  - `youtube.auth.token_file`
+3. 初回認証コマンドを実行
+
+```bash
+python -m twitch_auto_opener.youtube_auth --config config.toml
+# または
+youtube-auth --config config.toml
+```
+
+4. ブラウザで同意後、`token_file` にトークンが保存されることを確認
 
 ## 実行
 
@@ -100,6 +132,61 @@ mise run build:windows_on_wsl "C:\\Users\\<username>\\Desktop\\twitch-build"
 | `read_timeout_seconds`      | `120`   | IRC 読み取りタイムアウト（秒）                                      |
 | `debug`                     | `false` | コメント保存のデバッグログ                                          |
 
+### YouTube 全体設定（`[youtube]`）
+
+| キー                      | 既定値                            | 説明                                                     |
+| ------------------------- | --------------------------------- | -------------------------------------------------------- |
+| `enabled`                 | `true`                            | YouTube 自動アップロード機能の有効化                     |
+| `min_age_days`            | `7`                               | アップロード対象にする録画ファイルの最低経過日数（最小2） |
+| `tick_interval_seconds`   | `300`                             | アップロード処理の実行間隔（秒）                         |
+| `state_file`              | `./VOD/.youtube_upload_state.json` | 重複防止・リトライ制御用の状態ファイル                    |
+| `history_file`            | `./VOD/.youtube_upload_history.jsonl` | 監査用の履歴ファイル（JSONL）                            |
+| `max_uploads_per_tick`    | `1`                               | 1回の tick で処理する最大アップロード本数                |
+
+### YouTube 認証設定（`[youtube.auth]`）
+
+| キー                  | 既定値 | 説明                                  |
+| --------------------- | ------ | ------------------------------------- |
+| `client_secrets_file` | `""`  | GCP で取得した OAuth クライアント JSON |
+| `token_file`          | `""`  | 初回認証で生成するトークン保存先       |
+
+### YouTube デフォルト動画設定（`[youtube.defaults]`）
+
+| キー                      | 既定値                                 | 説明                                                     |
+| ------------------------- | -------------------------------------- | -------------------------------------------------------- |
+| `privacy_status`          | `unlisted`                             | 公開範囲 (`private` / `unlisted` / `public`)            |
+| `title_template`          | `【Twitch】{id} {ts:%Y-%m-%d %H:%M}`   | タイトルテンプレート（`{id}` / `{ts:strftime}` 対応）    |
+| `category_id`             | `20`                                   | YouTube 動画カテゴリ ID                                  |
+| `made_for_kids`           | `false`                                | 子ども向けコンテンツ設定                                 |
+| `delete_ts_after_upload`  | `false`                                | アップロード成功後に `.ts` を削除するか                 |
+
+### YouTube クォータ制御（`[youtube.quota]`）
+
+| キー                                | 既定値                 | 説明                                                 |
+| ----------------------------------- | ---------------------- | ---------------------------------------------------- |
+| `quota_reset_timezone`              | `America/Los_Angeles`  | 日次クォータリセット判定に使うタイムゾーン           |
+| `skip_after_quota_exceeded_for_day` | `true`                 | クォータ超過時に当日アップロードを停止するか         |
+
+### Streamer ごとの YouTube 上書き設定
+
+`[streamer_default_config.youtube]` と `streamer_configs.<login>.youtube` で配信者単位の上書きが可能です。
+
+- `enabled`: 配信者ごとのアップロード有効/無効
+- `title_template`: 配信者専用タイトルテンプレート
+- `privacy_status`: 配信者専用公開範囲
+- `delete_ts_after_upload`: 配信者専用のアップロード後削除フラグ
+
+例:
+
+```toml
+[streamer_default_config.youtube]
+enabled = false
+
+[streamer_configs]
+streamer1 = { youtube = { enabled = true } }
+streamer2 = { youtube = { enabled = true, title_template = "【TW】{id} {ts:%Y%m%d_%H%M}", delete_ts_after_upload = true } }
+```
+
 ## コメント保存フォーマット
 
 `recording.chat.enabled = true` のとき、録画ファイルと同じ配信者ディレクトリに以下を保存します。
@@ -116,3 +203,12 @@ mise run build:windows_on_wsl "C:\\Users\\<username>\\Desktop\\twitch-build"
 - `recorder_first_byte_at_utc`: 録画側の開始アンカー時刻
 
 `rel_stream_ms` と `rel_record_ms` は用途別に使い分けられます。mpv 連動用途では通常 `rel_record_ms` を使用します。
+
+## YouTube 状態ファイルと履歴ファイル
+
+- `youtube.state_file`
+  - 制御用ファイル
+  - 重複アップロード防止、失敗リトライ、クォータ当日停止状態を保持
+- `youtube.history_file`
+  - 監査用ファイル（JSONL）
+  - `upload_succeeded`, `upload_failed`, `upload_skipped_quota_block`, `delete_succeeded`, `delete_failed` を追記
