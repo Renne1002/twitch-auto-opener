@@ -18,6 +18,7 @@ class MonitorService:
         check_interval_seconds: int,
         url_opener: Callable[[str], None],
         recorder: TwitchRecorder | None = None,
+        uploader: object | None = None,
         debug: bool = False,
     ) -> None:
         self._twitch_client = twitch_client
@@ -25,12 +26,11 @@ class MonitorService:
         self._check_interval_seconds = check_interval_seconds
         self._url_opener = url_opener
         self._recorder = recorder
+        self._uploader = uploader
         self._debug = debug
-        self._streamer_flags_by_login: dict[str, tuple[bool, bool, bool]] = {
-            item.login: (item.auto_open, item.record, item.auto_srt) for item in streamers
-        }
+        self._streamer_by_login: dict[str, StreamerConfig] = {item.login: item for item in streamers}
         self._login_by_user_id: dict[str, str] = {}
-        self._flags_by_user_id: dict[str, tuple[bool, bool, bool]] = {}
+        self._streamer_by_user_id: dict[str, StreamerConfig] = {}
         self._previous_live_ids: set[str] = set()
 
     def _debug_log(self, message: str) -> None:
@@ -38,12 +38,11 @@ class MonitorService:
             print(f"[debug] {message}")
 
     def setup(self) -> None:
-        streamers = list(self._streamer_flags_by_login.keys())
+        streamers = list(self._streamer_by_login.keys())
         by_login = self._twitch_client.resolve_user_ids(streamers)
         self._login_by_user_id = {user_id: login for login, user_id in by_login.items()}
-        self._flags_by_user_id = {
-            user_id: self._streamer_flags_by_login[login]
-            for user_id, login in self._login_by_user_id.items()
+        self._streamer_by_user_id = {
+            user_id: self._streamer_by_login[login] for user_id, login in self._login_by_user_id.items()
         }
         self._debug_log(
             f"setup resolved {len(self._login_by_user_id)} streamers: {', '.join(streamers)}"
@@ -77,8 +76,8 @@ class MonitorService:
             newly_live = live_ids - self._previous_live_ids
             for user_id in newly_live:
                 login = self._login_by_user_id[user_id]
-                auto_open, _record, _auto_srt = self._flags_by_user_id[user_id]
-                if not auto_open:
+                streamer = self._streamer_by_user_id[user_id]
+                if not streamer.auto_open:
                     continue
                 url = f"https://www.twitch.tv/{login}"
                 print(f"[info] streamer went live: {login}; opening {url}")
@@ -87,8 +86,8 @@ class MonitorService:
             if self._recorder:
                 for user_id in live_ids:
                     login = self._login_by_user_id[user_id]
-                    _auto_open, record, auto_srt = self._flags_by_user_id[user_id]
-                    if not record:
+                    streamer = self._streamer_by_user_id[user_id]
+                    if not streamer.record:
                         continue
                     stream_info = live_by_user_id.get(user_id)
                     if stream_info is None:
@@ -101,8 +100,14 @@ class MonitorService:
                         is_live_now=lambda uid=user_id: uid in self._fetch_live([uid]),
                         stream_id=stream_info.stream_id,
                         stream_started_at_utc=stream_info.started_at_utc,
-                        auto_srt=auto_srt,
+                        auto_srt=streamer.auto_srt,
                     )
+
+            if self._uploader and hasattr(self._uploader, "tick"):
+                try:
+                    self._uploader.tick(self._streamer_by_user_id)
+                except Exception as exc:
+                    print(f"[warn] youtube uploader tick failed: {exc}")
 
             self._previous_live_ids = live_ids
             self._debug_log(

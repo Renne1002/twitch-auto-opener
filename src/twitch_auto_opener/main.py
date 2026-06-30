@@ -18,6 +18,7 @@ from twitch_auto_opener.recorder import TwitchRecorder
 from twitch_auto_opener.single_instance import SingleInstance, SingleInstanceError
 from twitch_auto_opener.startup import ensure_startup_registration
 from twitch_auto_opener.twitch_client import TwitchClient
+from twitch_auto_opener.youtube_uploader import YoutubeUploader
 
 
 def _parse_args() -> argparse.Namespace:
@@ -107,6 +108,11 @@ def run() -> None:
             fastwhisper_config=config.recording.fastwhisper,
             chat_recorder=ChatRecorder(config.recording.chat),
             debug=config.monitor.debug,
+        ),
+        uploader=YoutubeUploader(
+            config=config,
+            output_dir=vod_output_dir,
+            app_base_dir=app_base_dir,
         ),
         debug=config.monitor.debug,
     )

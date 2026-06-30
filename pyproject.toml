@@ -5,6 +5,9 @@ description = "Open Twitch stream pages automatically when target streamers go l
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+  "google-api-python-client>=2.138.0,<3.0.0",
+  "google-auth-httplib2>=0.2.0,<1.0.0",
+  "google-auth-oauthlib>=1.2.0,<2.0.0",
   "pydantic>=2.8.0,<3.0.0",
   "tenacity>=9.0.0,<10.0.0",
   "twitchAPI>=4.5.0,<5.0.0",
@@ -12,6 +15,7 @@ dependencies = [
 
 [project.scripts]
 twitch-auto-opener = "twitch_auto_opener.main:run"
+youtube-auth = "twitch_auto_opener.youtube_auth:run"
 
 [build-system]
 requires = ["setuptools>=68", "wheel"]
