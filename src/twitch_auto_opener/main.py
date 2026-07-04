@@ -4,6 +4,7 @@ import argparse
 import platform
 import signal
 import sys
+import threading
 import webbrowser
 from pathlib import Path
 
@@ -18,6 +19,7 @@ from twitch_auto_opener.recorder import TwitchRecorder
 from twitch_auto_opener.single_instance import SingleInstance, SingleInstanceError
 from twitch_auto_opener.startup import ensure_startup_registration
 from twitch_auto_opener.twitch_client import TwitchClient
+from twitch_auto_opener.upload_service import UploadService
 from twitch_auto_opener.youtube_uploader import YoutubeUploader
 
 
@@ -110,14 +112,19 @@ def run() -> None:
             chat_recorder=ChatRecorder(config.recording.chat),
             debug=config.monitor.debug,
         ),
-        uploader=YoutubeUploader(
-            config=config,
-            output_dir=vod_output_dir,
-            app_base_dir=app_base_dir,
-            config_base_dir=config_path_obj.parent,
-        ),
         debug=config.monitor.debug,
     )
+    uploader = YoutubeUploader(
+        config=config,
+        output_dir=vod_output_dir,
+        app_base_dir=app_base_dir,
+        config_base_dir=config_path_obj.parent,
+    )
+    upload_service = UploadService(
+        uploader=uploader,
+        get_streamers_by_user_id=monitor.get_streamers_by_user_id,
+    )
+    monitor_thread: threading.Thread | None = None
 
     cleaned_up = False
 
@@ -126,6 +133,14 @@ def run() -> None:
         if cleaned_up:
             return
         cleaned_up = True
+
+        monitor.stop()
+        upload_service.stop()
+
+        if monitor_thread and monitor_thread.is_alive():
+            monitor_thread.join(timeout=max(5, config.monitor.check_interval_seconds + 2))
+        if upload_service.is_alive():
+            upload_service.join(timeout=5)
 
         if monitor._recorder:
             monitor._recorder.stop_all_chat_sessions(reason="process-shutdown")
@@ -143,9 +158,19 @@ def run() -> None:
 
     print("[info] setup monitor")
     monitor.setup()
+
+    monitor_thread = threading.Thread(
+        target=monitor.run_forever,
+        daemon=True,
+        name="live-monitor",
+    )
+    monitor_thread.start()
+    upload_service.start()
+
     print("[info] monitoring started")
     try:
-        monitor.run_forever()
+        while monitor_thread.is_alive() and upload_service.is_alive():
+            monitor_thread.join(timeout=1)
     finally:
         _cleanup()
 

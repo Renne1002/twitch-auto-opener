@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from threading import Event
 from typing import Callable
 
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
@@ -18,16 +19,16 @@ class MonitorService:
         check_interval_seconds: int,
         url_opener: Callable[[str], None],
         recorder: TwitchRecorder | None = None,
-        uploader: object | None = None,
         debug: bool = False,
+        stop_event: Event | None = None,
     ) -> None:
         self._twitch_client = twitch_client
         self._streamers = streamers
         self._check_interval_seconds = check_interval_seconds
         self._url_opener = url_opener
         self._recorder = recorder
-        self._uploader = uploader
         self._debug = debug
+        self._stop_event = stop_event or Event()
         self._streamer_by_login: dict[str, StreamerConfig] = {item.login: item for item in streamers}
         self._login_by_user_id: dict[str, str] = {}
         self._streamer_by_user_id: dict[str, StreamerConfig] = {}
@@ -57,12 +58,18 @@ class MonitorService:
     def _fetch_live(self, user_ids: list[str]) -> dict[str, LiveStreamInfo]:
         return self._twitch_client.fetch_live_streams(user_ids)
 
+    def stop(self) -> None:
+        self._stop_event.set()
+
+    def get_streamers_by_user_id(self) -> dict[str, StreamerConfig]:
+        return dict(self._streamer_by_user_id)
+
     def run_forever(self) -> None:
         if not self._login_by_user_id:
             raise RuntimeError("MonitorService.setup() must be called first")
 
         user_ids = list(self._login_by_user_id.keys())
-        while True:
+        while not self._stop_event.is_set():
             self._debug_log(
                 f"poll start: monitored={len(user_ids)} interval={self._check_interval_seconds}s"
             )
@@ -103,14 +110,8 @@ class MonitorService:
                         auto_srt=streamer.auto_srt,
                     )
 
-            if self._uploader and hasattr(self._uploader, "tick"):
-                try:
-                    self._uploader.tick(self._streamer_by_user_id)
-                except Exception as exc:
-                    print(f"[warn] youtube uploader tick failed: {exc}")
-
             self._previous_live_ids = live_ids
             self._debug_log(
                 f"poll done: live={len(live_ids)} newly_live={len(newly_live)} monitored={len(user_ids)}"
             )
-            time.sleep(self._check_interval_seconds)
+            self._stop_event.wait(self._check_interval_seconds)
