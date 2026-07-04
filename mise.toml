@@ -10,4 +10,4 @@ dev = "python -m twitch_auto_opener --config config.toml"
 
 [tasks."build:windows_on_wsl"]
 description = "Build Windows exe from WSL via build_for_windows_on_wsl.ps1. Optional arg: output directory (Windows path)."
-run = "./scripts/build_windows_on_wsl.sh"
+run = "./scripts/build_for_windows_on_wsl.sh"

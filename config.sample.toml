@@ -1,16 +1,24 @@
 [twitch_api]
+# Twitch Developer で発行した Client ID
 client_id = "ここにクライアントIDを入力"
+# Twitch Developer で発行した Client Secret
 client_secret = "ここにクライアントシークレットを入力"
 
 [streamer_default_config]
-auto_open = true # 配信開始時に自動でブラウザを開くか
-record = false   # 配信開始時に自動で録画を開始するか
-auto_srt = false # 録画完了後に自動で字幕(.srt)を作成するか
+# 配信開始時にブラウザを自動で開くか
+auto_open = true
+# 配信開始時に録画を開始するか
+record = false
+# 録画セッション終了後に字幕(.srt)を自動生成するか
+# record = true と併用して使う
+auto_srt = false
 
 [streamer_default_config.youtube]
+# 配信者ごとの YouTube アップロードを有効にするか
 enabled = false
 
 # Option: 配信者ごとのデフォルトタイトルテンプレート
+# 利用可能プレースホルダ: {id}, {ts:%Y-%m-%d %H:%M}
 # title_template = "[Twitch Recording] {id} {ts:%Y-%m-%d %H:%M}"
 
 # Option: 配信者ごとのデフォルト公開範囲 (private / unlisted / public)
@@ -20,6 +28,7 @@ enabled = false
 # delete_ts_after_upload = false
 
 [streamer_configs]
+# 配信者単位の上書き設定
 streamer1 = {}
 streamer2 = { record = true }
 streamer3 = { record = true, auto_srt = true }
@@ -27,6 +36,7 @@ streamer3 = { record = true, auto_srt = true }
 # streamer5 = { youtube = { enabled = true, title_template = "【TW】{id} {ts:%Y%m%d_%H%M}", delete_ts_after_upload = true } }
 
 [chrome]
+# 起動に使う Chrome プロファイルのメールアドレス
 profile_email = "ここに Chrome プロフィールのメールアドレスを入力"
 
 # Option: chrome.exe のパス
@@ -36,38 +46,54 @@ profile_email = "ここに Chrome プロフィールのメールアドレスを�
 # user_data_dir = "C:/Users/<User>/AppData/Local/Google/Chrome/User Data"
 
 [monitor]
-# チェック間隔（秒）。
+# 配信状態のポーリング間隔（秒）
 check_interval_seconds = 15
+# 監視・録画周辺のデバッグログを有効化するか
 debug = false
 
 [youtube]
+# YouTube 自動アップロード機能を有効にするか
 enabled = true
+# アップロード対象にする録画ファイルの最低経過日数（最小2）
 min_age_days = 7
+# アップロード処理を起動する tick 間隔（秒）
 tick_interval_seconds = 300
+# 重複防止・リトライ・バックオフ状態を保持する JSON ファイル
 state_file = "./VOD/.youtube_upload_state.json"
+# アップロードイベントを追記する監査用 JSONL ファイル
 history_file = "./VOD/.youtube_upload_history.jsonl"
+# 1回の tick で試行する最大アップロード本数
 max_uploads_per_tick = 1
 
 [youtube.auth]
-# GCPで取得したOAuthクライアント情報(json)
+# GCP で取得した OAuth クライアント JSON ファイル
 client_secrets_file = "./secrets/youtube_client_secret.json"
 
-# 初回認証後に生成されるトークン保存先
+# 初回認証(youtube-auth)後に生成される token 保存先
 token_file = "./secrets/youtube_token.json"
 
 [youtube.defaults]
+# アップロード先動画の公開範囲 (private / unlisted / public)
 privacy_status = "unlisted"
+# 動画タイトルテンプレート
+# 利用可能プレースホルダ: {id}, {ts:%Y-%m-%d %H:%M}
 title_template = "[Twitch Recording] {id} {ts:%Y-%m-%d %H:%M}"
+# YouTube categoryId (例: 20 = Gaming)
 category_id = "20"
+# YouTube の「子ども向けコンテンツ」設定
 made_for_kids = false
+# アップロード成功後に .ts を削除するか
 delete_ts_after_upload = false
 
 [youtube.quota]
+# YouTube 日次クォータのリセット判定に使うタイムゾーン
 quota_reset_timezone = "America/Los_Angeles"
+# クォータ超過時に当日のアップロードを止めるか
 skip_after_quota_exceeded_for_day = true
 
 [recording]
 # 録画セグメントごとに .ts を .mp4 に変換するか
+# 注意: YouTube アップロード対象は .ts。アップロード運用時は false 推奨
 convert_to_mp4 = true
 
 # 配信中に録画プロセスが終了した場合の再試行待機時間（秒）
@@ -80,7 +106,9 @@ retry_delay_seconds = 10
 quality = "best"
 
 [recording.tools]
+# streamlink 実行ファイルのパス
 streamlink_path = "streamlink"
+# ffmpeg 実行ファイルのパス
 ffmpeg_path = "ffmpeg"
 
 [recording.fastwhisper]
@@ -128,5 +156,5 @@ read_timeout_seconds = 120
 debug = false
 
 [startup]
-# Windows スタートアップ登録を行うか
+# Windows スタートアップへ本アプリ起動用 .cmd を登録するか
 enabled = false

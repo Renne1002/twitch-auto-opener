@@ -2,7 +2,7 @@
 set -eu
 
 WIN_REPO_PATH="$(wslpath -w "$PWD")"
-WIN_SCRIPT_PATH="${WIN_REPO_PATH}\\build_for_windows_on_wsl.ps1"
+WIN_SCRIPT_PATH="${WIN_REPO_PATH}\\scripts\\build_for_windows_on_wsl.ps1"
 
 if [ "$#" -gt 0 ]; then
   OUTPUT_DIR="$*"
