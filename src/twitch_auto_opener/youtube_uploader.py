@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from google.auth.exceptions import RefreshError
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
@@ -29,6 +30,11 @@ _DURATION_PATTERN = re.compile(r"Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)")
 _MAX_PART_DURATION_SECONDS = 10 * 60 * 60
 _PROCESSING_POLL_INTERVAL_SECONDS = 60
 _PROCESSING_POLL_TIMEOUT_SECONDS = 12 * 60 * 60
+# NOTE: SSL切断などの一時的な例外はこの回数まで自動再試行する
+#   insertは失敗時もquotaを消費するため無制限にはしない
+_MAX_TRANSIENT_FAILURES = 5
+_AUTH_FAILURE_BACKOFF_SECONDS = 1800
+_VIDEOS_LIST_MAX_IDS = 50
 
 
 class VideoProcessingError(RuntimeError):
@@ -515,6 +521,115 @@ class YoutubeUploader:
         )
         return False
 
+    def _handle_unexpected_error(
+        self,
+        *,
+        file_key: str,
+        user_id: str,
+        login: str,
+        file_path: Path,
+        error_code: str,
+        exc: Exception,
+    ) -> bool:
+        """戻り値がTrueの場合は当該tickを中断する"""
+        if isinstance(exc, RefreshError):
+            # NOTE: トークン失効はファイル固有の失敗ではないため failed_files に記録しない
+            #   記録すると再認証後もそのファイルが永久にスキップされる
+            self._state.set_auth_backoff(seconds=_AUTH_FAILURE_BACKOFF_SECONDS)
+            self._history.upload_failed(
+                user_id=user_id,
+                login=login,
+                file_path=file_path,
+                error_code="auth_error",
+                error_reason=str(exc),
+            )
+            print(f"[warn] youtube auth failed during upload; re-run youtube_auth if this persists ({exc})")
+            self._state.save()
+            return True
+
+        retryable = self._state.failure_count(file_key) + 1 < _MAX_TRANSIENT_FAILURES
+        self._state.mark_failed(
+            file_key,
+            error_code=error_code,
+            error_reason=str(exc),
+            retryable=retryable,
+        )
+        self._history.upload_failed(
+            user_id=user_id,
+            login=login,
+            file_path=file_path,
+            error_code=error_code,
+            error_reason=str(exc),
+        )
+        print(
+            f"[warn] youtube upload failed unexpectedly: {file_path.name} ({exc})"
+            + ("" if retryable else "; giving up")
+        )
+        return False
+
+    def _fetch_processed_video_ids(self, service, video_ids: list[str]) -> set[str]:
+        processed: set[str] = set()
+        for start in range(0, len(video_ids), _VIDEOS_LIST_MAX_IDS):
+            chunk = video_ids[start : start + _VIDEOS_LIST_MAX_IDS]
+            response = service.videos().list(part="status", id=",".join(chunk)).execute(num_retries=3)
+            for item in response.get("items", []):
+                if item.get("status", {}).get("uploadStatus") == "processed":
+                    processed.add(str(item.get("id")))
+        return processed
+
+    def _delete_already_uploaded_originals(
+        self,
+        service,
+        candidates: list[UploadCandidate],
+        streamers_by_user_id: dict[str, StreamerConfig],
+    ) -> None:
+        """アップロード済みなのに残っている.tsを、YouTube上の処理完了を確認したうえで削除する
+
+        NOTE: delete_ts_after_upload を後から有効化した場合や削除失敗時に残ったファイルの回収用
+        """
+        targets: list[tuple[UploadCandidate, list[str]]] = []
+        for candidate in candidates:
+            streamer = streamers_by_user_id.get(candidate.user_id)
+            if streamer is None or not streamer.youtube_delete_ts_after_upload:
+                continue
+            file_key = UploadStateStore.build_file_key(
+                candidate.file_path,
+                candidate.file_size,
+                candidate.mtime_ns,
+            )
+            entry = self._state.get_uploaded(file_key)
+            if entry is None or not entry.get("verified"):
+                continue
+            video_ids = [v for v in str(entry.get("video_id", "")).split(",") if v]
+            if video_ids:
+                targets.append((candidate, video_ids))
+
+        if not targets:
+            return
+
+        try:
+            processed = self._fetch_processed_video_ids(
+                service, [v for _, ids in targets for v in ids]
+            )
+        except HttpError as exc:
+            error_code, error_reason = self._parse_http_error(exc)
+            print(f"[warn] failed to verify uploaded videos: code={error_code} reason={error_reason}")
+            return
+
+        for candidate, video_ids in targets:
+            if not all(v in processed for v in video_ids):
+                print(
+                    "[warn] uploaded video not found or not processed on youtube; keep ts: "
+                    f"{candidate.file_path.name} ({','.join(video_ids)})"
+                )
+                continue
+            self._delete_uploaded_original(
+                user_id=candidate.user_id,
+                login=candidate.login,
+                file_path=candidate.file_path,
+            )
+            print(f"[info] deleted already-uploaded ts: {candidate.file_path.name}")
+
     def _process_pending_multipart(self, service, file_key: str, plan: dict[str, Any]) -> None:
         next_part_index = int(plan.get("next_part_index", 0))
         parts = plan.get("parts", [])
@@ -616,6 +731,11 @@ class YoutubeUploader:
                 break
             if self._state.is_rate_limited(datetime.now(UTC)):
                 break
+            if not self._state.should_retry_failed(file_key, now_utc):
+                if self._state.is_permanently_failed(file_key):
+                    self._state.clear_pending_multipart(file_key)
+                    self._cleanup_generated_parts(plan, delete_original=False)
+                continue
 
             attempt_count += 1
             current_part = plan.get("parts", [])[int(plan.get("next_part_index", 0))]
@@ -652,26 +772,21 @@ class YoutubeUploader:
                     f"[warn] youtube processing failed for multipart upload: {current_part_path.name} ({exc.reason})"
                 )
             except Exception as exc:
-                self._state.clear_pending_multipart(file_key)
-                self._cleanup_generated_parts(plan, delete_original=False)
-                self._state.mark_failed(
-                    file_key,
-                    error_code="upload_error",
-                    error_reason=str(exc),
-                    retryable=False,
-                )
-                self._history.upload_failed(
+                # NOTE: 再試行可能な間は分割計画を残し、次回は未完了パートから再開する
+                #   破棄すると再分割で完了済みパートが重複アップロードされる
+                should_abort = self._handle_unexpected_error(
+                    file_key=file_key,
                     user_id=str(plan["user_id"]),
                     login=str(plan["login"]),
                     file_path=current_part_path,
                     error_code="upload_error",
-                    error_reason=str(exc),
+                    exc=exc,
                 )
-                print(
-                    f"[warn] youtube multipart upload failed unexpectedly: {current_part_path.name} ({exc})"
-                )
+                if should_abort:
+                    return
 
         candidates = self._scanner.scan(streamers_by_user_id=streamers_by_user_id, now_utc=now_utc)
+        self._delete_already_uploaded_originals(service, candidates, streamers_by_user_id)
         for candidate in candidates:
             if self._state.is_rate_limited(datetime.now(UTC)):
                 break
@@ -833,21 +948,16 @@ class YoutubeUploader:
                                 self._state.save()
                                 return
                             except Exception as retry_other_exc:
-                                self._state.clear_pending_multipart(file_key)
-                                self._cleanup_generated_parts(multipart_plan, delete_original=False)
-                                self._state.mark_failed(
-                                    file_key,
-                                    error_code="split_upload_error",
-                                    error_reason=str(retry_other_exc),
-                                    retryable=False,
-                                )
-                                self._history.upload_failed(
+                                # NOTE: 分割計画は残し、以降は multipart ループ側で再開させる
+                                if self._handle_unexpected_error(
+                                    file_key=file_key,
                                     user_id=candidate.user_id,
                                     login=candidate.login,
                                     file_path=candidate.file_path,
                                     error_code="split_upload_error",
-                                    error_reason=str(retry_other_exc),
-                                )
+                                    exc=retry_other_exc,
+                                ):
+                                    return
                 else:
                     self._state.mark_failed(
                         file_key,
@@ -866,19 +976,14 @@ class YoutubeUploader:
                         f"[warn] youtube processing failed: {candidate.file_path.name} ({exc.reason})"
                     )
             except Exception as exc:
-                self._state.mark_failed(
-                    file_key,
-                    error_code="upload_error",
-                    error_reason=str(exc),
-                    retryable=False,
-                )
-                self._history.upload_failed(
+                if self._handle_unexpected_error(
+                    file_key=file_key,
                     user_id=candidate.user_id,
                     login=candidate.login,
                     file_path=candidate.file_path,
                     error_code="upload_error",
-                    error_reason=str(exc),
-                )
-                print(f"[warn] youtube upload failed unexpectedly: {candidate.file_path.name} ({exc})")
+                    exc=exc,
+                ):
+                    return
 
         self._state.save()

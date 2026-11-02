@@ -97,6 +97,21 @@ class UploadStateStore:
         uploaded_files = self._state.get("uploaded_files", {})
         return file_key in uploaded_files
 
+    def get_uploaded(self, file_key: str) -> dict[str, Any] | None:
+        uploaded_files = self._state.get("uploaded_files", {})
+        entry = uploaded_files.get(file_key)
+        return entry if isinstance(entry, dict) else None
+
+    def failure_count(self, file_key: str) -> int:
+        failed_files = self._state.get("failed_files", {})
+        entry = failed_files.get(file_key) or {}
+        return int(entry.get("failures", 0))
+
+    def is_permanently_failed(self, file_key: str) -> bool:
+        failed_files = self._state.get("failed_files", {})
+        entry = failed_files.get(file_key)
+        return bool(entry) and entry.get("retryable") is False
+
     def has_pending_multipart(self, file_key: str) -> bool:
         multipart_uploads = self._state.get("multipart_uploads", {})
         return file_key in multipart_uploads
