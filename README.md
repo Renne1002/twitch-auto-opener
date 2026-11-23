@@ -60,8 +60,14 @@
 
 ### 4. 字幕生成モジュール
 
-- `auto_srt = true` の配信者について、録画終了後に `faster-whisper` で `.srt` を生成
+- `auto_srt = true` の配信者について、録画終了後に [Faster-Whisper-XXL](https://github.com/Purfview/whisper-standalone-win)（standalone版）で `.srt` を生成
 - `record = true` と併用してください。
+
+補足:
+
+- 実行ファイルは `recording.fastwhisper.fast_whisper_path` で指定します（省略時は PATH 上の `faster-whisper`）。
+- 複数のツールから共有する本体を `E:\Apps\Faster-Whisper-XXL_r245.4_windows\Faster-Whisper-XXL\faster-whisper-xxl.exe` に置き、本ツール専用の写しは持ちません。
+- `--beep_off` など standalone 版固有の引数を渡すため、pip 版の CLI では動きません。
 
 ### 5. YouTube アップロードモジュール
 

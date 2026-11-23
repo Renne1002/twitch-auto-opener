@@ -112,8 +112,9 @@ streamlink_path = "streamlink"
 ffmpeg_path = "ffmpeg"
 
 [recording.fastwhisper]
-# faster-whisper 実行ファイルのパス
-fast_whisper_path = "faster-whisper"
+# Faster-Whisper-XXL（standalone版）実行ファイルのパス
+# 共有のツール（E:\Apps）を指す。省略時は PATH 上の `faster-whisper` を使う
+fast_whisper_path = "E:/Apps/Faster-Whisper-XXL_r245.4_windows/Faster-Whisper-XXL/faster-whisper-xxl.exe"
 
 # 使用モデル（base, small, medium, large-v3, turbo など）
 model = "base"
